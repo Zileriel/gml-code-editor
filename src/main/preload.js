@@ -12,14 +12,14 @@ contextBridge.exposeInMainWorld(
             }
         },
         receive: (channel, func) => {
-            let validChannels = ['fromMain', 'project-error', 'project-opened', 'toggle-feather'];
+            let validChannels = ['fromMain', 'project-error', 'project-opened', 'toggle-feather', 'save-project'];
             if (validChannels.includes(channel)) {
                 // Deliberately strip event as it includes `sender` 
                 ipcRenderer.on(channel, (event, ...args) => func(...args));
             }
         },
         invoke: (channel, data) => {
-            let validChannels = ['read-script-content', 'update-object-property', 'read-sprite-image', 'read-functions-xml'];
+            let validChannels = ['read-script-content', 'update-object-property', 'read-sprite-image', 'read-functions-xml', 'save-file'];
             if (validChannels.includes(channel)) {
                 return ipcRenderer.invoke(channel, data);
             }

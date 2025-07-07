@@ -19,6 +19,66 @@ let keywordSet = new Set([
     'and', 'or', 'xor', 'not', 'div', 'mod', 'repeat', 'until', 'with'
 ]);
 
+// Track modified files
+let modifiedFiles = new Set();
+
+// Function to mark a file as modified
+function markFileModified(filePath) {
+    modifiedFiles.add(filePath);
+}
+
+// Function to save all modified files
+async function saveProject() {
+    const promises = [];
+    
+    for (const filePath of modifiedFiles) {
+        // Get the content from the editor if it's the currently open file
+        let content;
+        if (editor && editor.filePath === filePath) {
+            content = editor.getValue();
+        } else {
+            // For object event files that were modified but not currently open
+            const objectEvent = selectedObject?.events?.find(e => e.gmlFile === filePath);
+            if (objectEvent) {
+                content = objectEvent.content;
+            }
+        }
+
+        if (content !== undefined) {
+            promises.push(
+                window.api.invoke('save-file', { filePath, content })
+                    .then(result => {
+                        if (result.success) {
+                            modifiedFiles.delete(filePath);
+                            return { filePath, success: true };
+                        } else {
+                            return { filePath, success: false, error: result.error };
+                        }
+                    })
+                    .catch(error => ({ filePath, success: false, error: error.message }))
+            );
+        }
+    }
+
+    const results = await Promise.all(promises);
+    
+    // Show notification with results
+    const failed = results.filter(r => !r.success);
+    if (failed.length === 0) {
+        if (results.length > 0) {
+            showNotification('All files saved successfully', 'success');
+        } else {
+            showNotification('No files needed saving', 'info');
+        }
+    } else {
+        const message = `Failed to save ${failed.length} file(s):\n${failed.map(f => `${path.basename(f.filePath)}: ${f.error}`).join('\n')}`;
+        showNotification(message, 'error');
+    }
+}
+
+// Listen for save project command
+window.api.receive('save-project', saveProject);
+
 // Function to update the lookup sets
 function updateLookupSets() {
     builtinSet = new Set(gmBuiltins.map(b => b.text));
@@ -528,16 +588,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
-            // 5. Check for deprecated GML syntax
-            if (line.includes('execute_string')) {
-                found.push({
-                    from: CodeMirror.Pos(lineIndex, line.indexOf('execute_string')),
-                    to: CodeMirror.Pos(lineIndex, line.indexOf('execute_string') + 'execute_string'.length),
-                    message: "execute_string is deprecated and unsafe. Use functions instead.",
-                    severity: "error"
-                });
-            }
-
             // 6. Check for incorrect string concatenation
             const stringConcatMatch = line.match(/["'][^"']*["']\s*\+\s*\d+/);
             if (stringConcatMatch) {
@@ -571,18 +621,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     message: "Potential infinite loop detected. Ensure there's a break condition.",
                     severity: "warning"
                 });
-            }
-
-            // 9. Check for inefficient collision checking
-            if (line.includes('collision_rectangle') || line.includes('collision_circle')) {
-                if (line.includes('all')) {
-                    found.push({
-                        from: CodeMirror.Pos(lineIndex, line.indexOf('all')),
-                        to: CodeMirror.Pos(lineIndex, line.indexOf('all') + 3),
-                        message: "Using 'all' in collision functions is inefficient. Use specific object types.",
-                        severity: "warning"
-                    });
-                }
             }
 
             // 10. Check for incorrect resource access
@@ -736,16 +774,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
 
-            // 14. Check for performance issues
-            if (line.includes('instance_find(all,')) {
-                found.push({
-                    from: CodeMirror.Pos(lineIndex, line.indexOf('instance_find(all,')),
-                    to: CodeMirror.Pos(lineIndex, line.indexOf('instance_find(all,') + 'instance_find(all,'.length),
-                    message: "instance_find(all, ...) is very slow. Use specific object types.",
-                    severity: "warning"
-                });
-            }
-
             // 15. Check for common GML mistakes
             if (line.includes('alarm[0] = -1')) {
                 found.push({
@@ -764,16 +792,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     to: CodeMirror.Pos(lineIndex, nullRefMatch.index + nullRefMatch[0].length),
                     message: "Potential null reference. Consider checking if instance exists first.",
                     severity: "info"
-                });
-            }
-
-            // 17. Check for inefficient string operations
-            if (line.includes('string_length') && line.includes('for')) {
-                found.push({
-                    from: CodeMirror.Pos(lineIndex, line.indexOf('string_length')),
-                    to: CodeMirror.Pos(lineIndex, line.indexOf('string_length') + 'string_length'.length),
-                    message: "Calling string_length in a loop is inefficient. Store the length in a variable.",
-                    severity: "warning"
                 });
             }
 
@@ -925,6 +943,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Enable real-time linting
     editor.on("change", function(cm, change) {
+        if (editor.filePath) {
+            markFileModified(editor.filePath);
+        }
         // Force lint refresh after each change
         cm.performLint();
     });
@@ -982,9 +1003,12 @@ function updateEditorHeader(title = 'Editor') {
 }
 
 function clearEditor() {
-    editor.setValue('');
-    editor.refresh();
-    updateEditorHeader();
+    if (editor) {
+        editor.setValue('');
+        editor.filePath = null; // Clear the file path
+        editor.refresh();
+        updateEditorHeader();
+    }
 }
 
 function clearInspector() {
@@ -1197,6 +1221,7 @@ function createTreeItem(item, itemType) {
                 try {
                     const content = await window.api.invoke('read-script-content', item.gmlFile);
                     editor.setValue(content || '');
+                    editor.filePath = item.gmlFile; // Set the file path
                     editor.refresh();
                     updateEditorHeader(`Editor - ${item.name}`);
                 } catch (error) {
@@ -1363,20 +1388,22 @@ function displayObjectEvents(object) {
                 }
             });
 
-            // Toggle selection on this event
+            // Toggle selection on this item
             eventItem.classList.toggle('selected');
 
             if (eventItem.classList.contains('selected')) {
-                // Load event code into editor
                 try {
-                    const content = await window.api.invoke('read-script-content', event.file);
+                    // Load event content into editor
+                    const content = await window.api.invoke('read-script-content', event.gmlFile);
                     editor.setValue(content || '');
+                    editor.filePath = event.gmlFile; // Set the file path
                     editor.refresh();
-                    updateEditorHeader(`Editor - ${displayName}`);
+                    updateEditorHeader(`Editor - ${object.name} - ${displayName}`);
                 } catch (error) {
-                    showNotification(`Failed to load event code: ${error.message}`, 'error');
+                    showNotification(`Failed to load event: ${error.message}`, 'error');
                 }
             } else {
+                // Clear editor when deselected
                 clearEditor();
             }
         });

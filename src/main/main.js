@@ -19,9 +19,9 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
 
     // Open DevTools in development mode
-    if (process.argv.includes('--dev')) {
-        mainWindow.webContents.openDevTools();
-    }
+    
+    mainWindow.webContents.openDevTools();
+    
 
     createMenu();
 }
@@ -43,6 +43,13 @@ function createMenu() {
                             const projectPath = result.filePaths[0];
                             validateAndOpenProject(projectPath);
                         }
+                    }
+                },
+                {
+                    label: 'Save Project',
+                    accelerator: 'CmdOrCtrl+S',
+                    click: () => {
+                        mainWindow.webContents.send('save-project');
                     }
                 },
                 { type: 'separator' },
@@ -353,6 +360,17 @@ ipcMain.handle('read-functions-xml', async () => {
         return await fs.readFile(xmlPath, 'utf8');
     } catch (error) {
         throw new Error(`Failed to read functions.xml: ${error.message}`);
+    }
+});
+
+// Save project file handler
+ipcMain.handle('save-file', async (event, { filePath, content }) => {
+    try {
+        await fs.writeFile(filePath, content, 'utf8');
+        return { success: true };
+    } catch (error) {
+        console.error('Error saving file:', error);
+        return { success: false, error: error.message };
     }
 });
 
