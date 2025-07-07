@@ -2,10 +2,31 @@ const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 
+// State management
+const STATE_FILE = path.join(app.getPath('userData'), 'app-state.json');
+
+async function loadState() {
+    try {
+        const data = await fs.readFile(STATE_FILE, 'utf8');
+        return JSON.parse(data);
+    } catch (error) {
+        // Return default state if file doesn't exist or is invalid
+        return { lastProjectPath: null };
+    }
+}
+
+async function saveState(state) {
+    try {
+        await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2));
+    } catch (error) {
+        console.error('Error saving state:', error);
+    }
+}
+
 let mainWindow;
 
 // Initialize main application window with security settings
-function createWindow() {
+async function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1200,
         height: 800,
@@ -19,10 +40,21 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
     mainWindow.webContents.openDevTools();
     createMenu();
+
+    // Load last opened project
+    const state = await loadState();
+    if (state.lastProjectPath) {
+        // Wait a bit for the renderer to initialize
+        setTimeout(() => {
+            validateAndOpenProject(state.lastProjectPath);
+        }, 1000);
+    }
 }
 
 // Create application menu with file operations and view controls
-function createMenu() {
+async function createMenu() {
+    const state = await loadState();
+    
     const template = [
         {
             label: 'File',
@@ -38,6 +70,15 @@ function createMenu() {
                         if (!result.canceled) {
                             const projectPath = result.filePaths[0];
                             validateAndOpenProject(projectPath);
+                        }
+                    }
+                },
+                {
+                    label: 'Recent Project',
+                    enabled: state.lastProjectPath !== null,
+                    click: async () => {
+                        if (state.lastProjectPath) {
+                            validateAndOpenProject(state.lastProjectPath);
                         }
                     }
                 },
@@ -103,6 +144,9 @@ async function validateAndOpenProject(projectPath) {
             path: projectPath,
             assets: assets
         });
+
+        // Save the project path in app state
+        await saveState({ lastProjectPath: projectPath });
 
     } catch (error) {
         mainWindow.webContents.send('project-error', `Error opening project: ${error.message}`);
