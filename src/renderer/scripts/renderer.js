@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize CodeMirror
     editor = CodeMirror.fromTextArea(document.getElementById('code-editor'), {
         mode: 'javascript',
-        theme: 'monokai',
+        theme: 'ambiance',
         lineNumbers: true,
         autoCloseBrackets: true,
         matchBrackets: true,

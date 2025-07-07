@@ -345,6 +345,195 @@ body {
     border-left-color: #ffffff !important;
 } 
 
+/* CodeMirror Custom Theme */
+.CodeMirror {
+    background: #1e1e1e !important;
+    color: #d4d4d4 !important;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.CodeMirror-gutters {
+    background: #252526 !important;
+    border-right: 1px solid #3c3c3c !important;
+}
+
+.CodeMirror-linenumber {
+    color: #858585 !important;
+}
+
+.CodeMirror-cursor {
+    border-left: 2px solid #569cd681 !important;
+}
+
+.CodeMirror-selected {
+    background: #CFEFFF50 !important;
+}
+
+.CodeMirror-line {
+    padding: 0 8px !important;
+}
+
+/* Syntax Highlighting */
+.cm-s-ambiance .cm-keyword {
+    color: #FFB871 !important;
+}
+
+/* Regular variables - this should be first to set the default */
+.cm-s-ambiance .cm-variable {
+    color: #B2B1FF !important;
+}
+
+/* Built-in functions only */
+.cm-s-ambiance .cm-builtin {
+    color: #58E55A !important;
+}
+
+/* GameMaker Built-in Variables - these will override the regular variable color due to higher specificity */
+.cm-s-ambiance span.cm-variable[class*="room"],
+.cm-s-ambiance span.cm-variable[class*="sprite_index"],
+.cm-s-ambiance span.cm-variable[class*="image_index"],
+.cm-s-ambiance span.cm-variable[class*="image_speed"],
+.cm-s-ambiance span.cm-variable[class*="image_alpha"],
+.cm-s-ambiance span.cm-variable[class*="image_angle"],
+.cm-s-ambiance span.cm-variable[class*="image_blend"],
+.cm-s-ambiance span.cm-variable[class*="image_xscale"],
+.cm-s-ambiance span.cm-variable[class*="image_yscale"],
+.cm-s-ambiance span.cm-variable[class*="bbox_left"],
+.cm-s-ambiance span.cm-variable[class*="bbox_right"],
+.cm-s-ambiance span.cm-variable[class*="bbox_top"],
+.cm-s-ambiance span.cm-variable[class*="bbox_bottom"],
+.cm-s-ambiance span.cm-variable[class*="x"],
+.cm-s-ambiance span.cm-variable[class*="y"],
+.cm-s-ambiance span.cm-variable[class*="xprevious"],
+.cm-s-ambiance span.cm-variable[class*="yprevious"],
+.cm-s-ambiance span.cm-variable[class*="xstart"],
+.cm-s-ambiance span.cm-variable[class*="ystart"],
+.cm-s-ambiance span.cm-variable[class*="hspeed"],
+.cm-s-ambiance span.cm-variable[class*="vspeed"],
+.cm-s-ambiance span.cm-variable[class*="direction"],
+.cm-s-ambiance span.cm-variable[class*="speed"],
+.cm-s-ambiance span.cm-variable[class*="friction"],
+.cm-s-ambiance span.cm-variable[class*="gravity"],
+.cm-s-ambiance span.cm-variable[class*="gravity_direction"],
+.cm-s-ambiance span.cm-variable[class*="solid"],
+.cm-s-ambiance span.cm-variable[class*="persistent"],
+.cm-s-ambiance span.cm-variable[class*="depth"],
+.cm-s-ambiance span.cm-variable[class*="visible"],
+.cm-s-ambiance span.cm-variable[class*="alarm"],
+.cm-s-ambiance span.cm-variable[class*="timeline_index"],
+.cm-s-ambiance span.cm-variable[class*="timeline_position"],
+.cm-s-ambiance span.cm-variable[class*="timeline_speed"],
+.cm-s-ambiance span.cm-variable[class*="path_index"],
+.cm-s-ambiance span.cm-variable[class*="path_position"],
+.cm-s-ambiance span.cm-variable[class*="path_speed"],
+.cm-s-ambiance span.cm-variable[class*="path_orientation"],
+.cm-s-ambiance span.cm-variable[class*="path_endaction"],
+.cm-s-ambiance span.cm-variable[class*="object_index"],
+.cm-s-ambiance span.cm-variable[class*="id"],
+.cm-s-ambiance span.cm-variable[class*="mask_index"],
+.cm-s-ambiance span.cm-variable[class*="instance_count"],
+.cm-s-ambiance span.cm-variable[class*="instance_id"],
+.cm-s-ambiance span.cm-variable[class*="room_speed"],
+.cm-s-ambiance span.cm-variable[class*="fps"],
+.cm-s-ambiance span.cm-variable[class*="fps_real"],
+.cm-s-ambiance span.cm-variable[class*="current_time"],
+.cm-s-ambiance span.cm-variable[class*="current_year"],
+.cm-s-ambiance span.cm-variable[class*="current_month"],
+.cm-s-ambiance span.cm-variable[class*="current_day"],
+.cm-s-ambiance span.cm-variable[class*="current_weekday"],
+.cm-s-ambiance span.cm-variable[class*="current_hour"],
+.cm-s-ambiance span.cm-variable[class*="current_minute"],
+.cm-s-ambiance span.cm-variable[class*="current_second"],
+.cm-s-ambiance span.cm-variable[class*="mouse_x"],
+.cm-s-ambiance span.cm-variable[class*="mouse_y"],
+.cm-s-ambiance span.cm-variable[class*="mouse_button"],
+.cm-s-ambiance span.cm-variable[class*="mouse_lastbutton"],
+.cm-s-ambiance span.cm-variable[class*="keyboard_key"],
+.cm-s-ambiance span.cm-variable[class*="keyboard_lastkey"],
+.cm-s-ambiance span.cm-variable[class*="keyboard_string"],
+.cm-s-ambiance span.cm-variable[class*="game_id"],
+.cm-s-ambiance span.cm-variable[class*="working_directory"],
+.cm-s-ambiance span.cm-variable[class*="temp_directory"],
+.cm-s-ambiance span.cm-variable[class*="program_directory"],
+.cm-s-ambiance span.cm-variable[class*="delta_time"],
+.cm-s-ambiance span.cm-variable[class*="score"],
+.cm-s-ambiance span.cm-variable[class*="lives"],
+.cm-s-ambiance span.cm-variable[class*="health"] {
+    color: #58E55A !important;
+    font-weight: bold;
+}
+
+/* GameMaker Built-in Constants */
+.cm-s-ambiance span.cm-variable[class*="true"],
+.cm-s-ambiance span.cm-variable[class*="false"],
+.cm-s-ambiance span.cm-variable[class*="undefined"],
+.cm-s-ambiance span.cm-variable[class*="noone"],
+.cm-s-ambiance span.cm-variable[class*="all"],
+.cm-s-ambiance span.cm-variable[class*="self"],
+.cm-s-ambiance span.cm-variable[class*="other"] {
+    color: #FFB871 !important;
+    font-style: italic;
+    font-weight: bold;
+}
+
+/* Function calls */
+.cm-s-ambiance .cm-variable:not(.cm-property) + .cm-bracket,
+.cm-s-ambiance .cm-def + .cm-bracket {
+    color: #FFB871 !important;
+}
+
+.cm-s-ambiance .cm-def,
+.cm-s-ambiance .cm-variable:not(.cm-property) + .cm-bracket + .cm-bracket {
+    color: #FFB871 !important;
+}
+
+/* Rest of your existing syntax highlighting */
+.cm-s-ambiance .cm-operator {
+    color: #C0C0C0 !important;
+}
+
+.cm-s-ambiance .cm-string {
+    color: #FFFF00 !important;
+}
+
+.cm-s-ambiance .cm-number {
+    color: #FF8080 !important;
+}
+
+.cm-s-ambiance .cm-variable-2 {
+    color: #FFF899 !important;
+}
+
+.cm-s-ambiance .cm-property {
+    color: #FF8080 !important;
+}
+
+.cm-s-ambiance .cm-comment {
+    color: #5B995B !important;
+}
+
+.cm-s-ambiance .cm-atom {
+    color: #FF8080 !important;
+}
+
+.cm-s-ambiance .cm-builtin {
+    color: #58E55A !important;
+}
+
+/* Active Line Highlight */
+.CodeMirror-activeline-background {
+    background: #2c2c2d !important;
+}
+
+.CodeMirror-matchingbracket {
+    background-color: #3c3c3c !important;
+    color: #569cd6 !important;
+    font-weight: bold !important;
+    border: none !important;
+    outline: 1px solid #569cd6 !important;
+}
+
 /* Tree item text truncation */
 .tree-item span {
     overflow: hidden;
