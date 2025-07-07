@@ -597,3 +597,29 @@ body {
     font-size: 12px;
     text-align: center;
 } 
+
+/* CodeMirror Folding Gutter */
+.CodeMirror-foldgutter {
+    width: 1.2em;
+}
+
+.CodeMirror-foldgutter-open,
+.CodeMirror-foldgutter-folded {
+    color: #858585;
+    cursor: pointer;
+}
+
+.CodeMirror-foldgutter-open:after {
+    content: "\25BC";
+    font-size: 10px;
+}
+
+.CodeMirror-foldgutter-folded:after {
+    content: "\25B6";
+    font-size: 10px;
+}
+
+.CodeMirror-foldgutter-open:hover,
+.CodeMirror-foldgutter-folded:hover {
+    color: #c0c0c0;
+} 

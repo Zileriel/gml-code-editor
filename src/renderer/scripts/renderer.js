@@ -151,13 +151,52 @@ document.addEventListener('DOMContentLoaded', () => {
         mode: 'gamemaker',
         theme: 'ambiance',
         lineNumbers: true,
+        
+        // Auto brackets and matching
         autoCloseBrackets: true,
         matchBrackets: true,
+        
+        // Code folding
+        foldGutter: true,
+        gutters: ["CodeMirror-linenumbers", "CodeMirror-foldgutter"],
+        foldOptions: {
+            widget: '...',
+            minFoldSize: 2
+        },
+        
+        // Indentation
         indentUnit: 4,
         tabSize: 4,
         indentWithTabs: false,
+        smartIndent: true,
+        
+        // Line handling
         lineWrapping: false,
-        readOnly: false
+        firstLineNumber: 1,
+        
+        // Editor features
+        readOnly: false,
+        autofocus: true,
+        scrollbarStyle: "native",
+        
+        // Extra features
+        extraKeys: {
+            "Ctrl-Q": function(cm) { 
+                cm.foldCode(cm.getCursor()); 
+            },
+            "Ctrl-/": "toggleComment",
+            "Cmd-/": "toggleComment",
+            Tab: function(cm) {
+                if (cm.somethingSelected()) {
+                    cm.indentSelection("add");
+                } else {
+                    cm.replaceSelection("    ", "end", "+input");
+                }
+            },
+            "Shift-Tab": function(cm) {
+                cm.indentSelection("subtract");
+            }
+        }
     });
 
     // Initialize panel resizing
