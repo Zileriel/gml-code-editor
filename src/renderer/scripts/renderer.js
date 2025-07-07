@@ -7,17 +7,79 @@ let selectedObject = null;   // Currently selected object
 let featherEnabled = true;   // Code linting state
 let modifiedFiles = new Set(); // Track unsaved changes
 
+// Object-level scope tracking
+let currentObjectEvents = new Map(); // Map of event file paths to their content
+let objectLocalScope = new Set();    // Set of variables declared in any event of current object
+
 // Add this function near the top with other core functions
 async function loadScriptContent(scriptPath) {
     try {
         const content = await window.api.invoke('read-script-content', scriptPath);
         // Update global scope with this script's content
         updateGlobalScope(content);
+        
+        // If this is an object event, update object-level scope
+        if (selectedObject && selectedObject.events.some(e => e.file === scriptPath)) {
+            currentObjectEvents.set(scriptPath, content);
+            updateObjectScope();
+        }
+        
         return content;
     } catch (error) {
         console.error(`Error loading script ${scriptPath}:`, error);
         showNotification(`Failed to load script: ${error.message}`, 'error');
         return '';
+    }
+}
+
+// Function to update object-level scope
+function updateObjectScope() {
+    objectLocalScope.clear();
+    
+    // Process each event's content
+    for (const content of currentObjectEvents.values()) {
+        const lines = content.split('\n');
+        
+        let inBlockComment = false;
+        
+        lines.forEach(line => {
+            const trimmedLine = line.trim();
+            
+            // Skip empty lines
+            if (trimmedLine === '') return;
+            
+            // Handle block comments
+            if (trimmedLine.includes('/*')) inBlockComment = true;
+            if (trimmedLine.includes('*/')) {
+                inBlockComment = false;
+                return;
+            }
+            if (inBlockComment) return;
+            
+            // Skip single-line comments
+            if (trimmedLine.startsWith('//')) return;
+            
+            // Check for variable declarations
+            const varMatch = line.match(/\b(?:var|globalvar)\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+            if (varMatch) {
+                objectLocalScope.add(varMatch[1]);
+            }
+            
+            // Check for function parameters
+            const funcMatch = line.match(/function\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\((.*?)\)/);
+            if (funcMatch && funcMatch[1]) {
+                const params = funcMatch[1].split(',').map(p => p.trim());
+                params.forEach(param => {
+                    if (param) objectLocalScope.add(param);
+                });
+            }
+            
+            // Check for implicit declarations through assignment
+            const assignMatch = line.match(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*=(?!=)/);
+            if (assignMatch && !line.includes('if') && !line.includes('while') && !line.includes('for')) {
+                objectLocalScope.add(assignMatch[1]);
+            }
+        });
     }
 }
 
@@ -752,6 +814,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // Get the full identifier including any dots
                     const fullId = getWordAtPosition(line, idIndex).word;
                     
+                    // Check if it's in object-level scope
+                    if (objectLocalScope.has(fullId)) {
+                        return;
+                    }
+
                     // Check if this is an asset reference
                     if (isAssetReference(fullId)) {
                         return;
@@ -796,7 +863,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     usedVariables.add(fullId);
                     
                     // Check if variable is undeclared
-                    if (!declaredVariables.has(fullId)) {
+                    if (!declaredVariables.has(fullId) && !objectLocalScope.has(fullId)) {
                         found.push({
                             from: CodeMirror.Pos(lineIndex, idIndex),
                             to: CodeMirror.Pos(lineIndex, idIndex + fullId.length),
@@ -1662,10 +1729,10 @@ function displayObjectEvents(object) {
             eventItem.classList.toggle('selected');
 
             if (eventItem.classList.contains('selected')) {
-                // Load event content into editor and update global scope
-                const content = await loadScriptContent(event.file); // Use event.file instead of event.gmlFile
+                // Load event content into editor and update scopes
+                const content = await loadScriptContent(event.file);
                 editor.setValue(content || '');
-                editor.filePath = event.file; // Use event.file instead of event.gmlFile
+                editor.filePath = event.file;
                 editor.refresh();
                 updateEditorHeader(`Editor - ${object.name} - ${displayName}`);
             } else {
