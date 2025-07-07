@@ -41,6 +41,8 @@ function updateObjectScope() {
         const lines = content.split('\n');
         
         let inBlockComment = false;
+        let currentFunction = null;
+        let inFunctionParams = false;
         
         lines.forEach(line => {
             const trimmedLine = line.trim();
@@ -48,7 +50,8 @@ function updateObjectScope() {
             // Skip empty lines
             if (trimmedLine === '') return;
             
-            // Handle block comments
+            // Handle block comments and region directives
+            if (trimmedLine.startsWith('#region') || trimmedLine.startsWith('#endregion')) return;
             if (trimmedLine.includes('/*')) inBlockComment = true;
             if (trimmedLine.includes('*/')) {
                 inBlockComment = false;
@@ -65,19 +68,53 @@ function updateObjectScope() {
                 objectLocalScope.add(varMatch[1]);
             }
             
-            // Check for function parameters
-            const funcMatch = line.match(/function\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\((.*?)\)/);
-            if (funcMatch && funcMatch[1]) {
-                const params = funcMatch[1].split(',').map(p => p.trim());
-                params.forEach(param => {
-                    if (param) objectLocalScope.add(param);
-                });
+            // Check for function declarations and parameters
+            const funcMatch = line.match(/function\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*?)\)/);
+            if (funcMatch) {
+                currentFunction = funcMatch[1];
+                if (funcMatch[2]) {
+                    const params = funcMatch[2].split(',').map(p => p.trim());
+                    params.forEach(param => {
+                        if (param) objectLocalScope.add(param);
+                    });
+                }
+            }
+            
+            // Track function parameters in multi-line declarations
+            if (currentFunction) {
+                if (line.includes('(')) inFunctionParams = true;
+                if (inFunctionParams) {
+                    const params = line.match(/\b([a-zA-Z_][a-zA-Z0-9_]+)\b(?=[,\)])/g);
+                    if (params) {
+                        params.forEach(param => objectLocalScope.add(param));
+                    }
+                }
+                if (line.includes(')')) {
+                    inFunctionParams = false;
+                    if (line.includes('{')) currentFunction = null;
+                }
+            }
+            
+            // Check for array declarations
+            const arrayDeclMatch = line.match(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\[[^\]]+\]\s*=(?!=)/);
+            if (arrayDeclMatch) {
+                objectLocalScope.add(arrayDeclMatch[1]);
             }
             
             // Check for implicit declarations through assignment
-            const assignMatch = line.match(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*=(?!=)/);
-            if (assignMatch && !line.includes('if') && !line.includes('while') && !line.includes('for')) {
-                objectLocalScope.add(assignMatch[1]);
+            const assignMatches = line.matchAll(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*=(?!=)/g);
+            for (const match of assignMatches) {
+                const varName = match[1];
+                // Skip if it's part of a comparison or in a control structure
+                const beforeAssign = line.substring(0, match.index).trim();
+                if (!beforeAssign.endsWith('=') && 
+                    !beforeAssign.endsWith('<') && 
+                    !beforeAssign.endsWith('>') && 
+                    !beforeAssign.includes('if') && 
+                    !beforeAssign.includes('while') && 
+                    !beforeAssign.includes('for')) {
+                    objectLocalScope.add(varName);
+                }
             }
         });
     }
@@ -691,6 +728,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const declaredVariables = new Set();
         const declaredFunctions = new Set();
         const usedVariables = new Set();
+        const functionArguments = new Set(); // Track function arguments
 
         // Global bracket/brace tracking for multi-line structures
         let globalOpenBraces = 0;
@@ -700,11 +738,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         let globalStringChar = null;
         let globalInBlockComment = false;
         let currentEnum = null;
+        let currentFunction = null;
+        let inFunctionParams = false;
 
-        // First pass: collect all function declarations in this file
+        // First pass: collect declarations and function arguments
         lines.forEach((line, lineIndex) => {
             const trimmedLine = line.trim();
             
+            // Skip region directives
+            if (trimmedLine.startsWith('#region') || trimmedLine.startsWith('#endregion')) {
+                return;
+            }
+
             // Handle block comments
             if (trimmedLine.includes('/*')) {
                 globalInBlockComment = true;
@@ -722,10 +767,60 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
-            // Check for function declarations
-            const funcMatch = line.match(/\bfunction\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/);
+            // Check for function declarations and arguments
+            const funcMatch = line.match(/function\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*?)\)/);
             if (funcMatch) {
-                declaredFunctions.add(funcMatch[1]);
+                currentFunction = funcMatch[1];
+                declaredFunctions.add(currentFunction);
+                if (funcMatch[2]) {
+                    const params = funcMatch[2].split(',').map(p => p.trim());
+                    params.forEach(param => {
+                        if (param) {
+                            functionArguments.add(param);
+                            declaredVariables.add(param);
+                        }
+                    });
+                }
+            }
+
+            // Track function parameters in multi-line declarations
+            if (currentFunction) {
+                if (line.includes('(')) inFunctionParams = true;
+                if (inFunctionParams) {
+                    const params = line.match(/\b([a-zA-Z_][a-zA-Z0-9_]+)\b(?=[,\)])/g);
+                    if (params) {
+                        params.forEach(param => {
+                            functionArguments.add(param);
+                            declaredVariables.add(param);
+                        });
+                    }
+                }
+                if (line.includes(')')) {
+                    inFunctionParams = false;
+                    if (line.includes('{')) currentFunction = null;
+                }
+            }
+
+            // Check for array declarations
+            const arrayDeclMatch = line.match(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\[[^\]]+\]\s*=(?!=)/);
+            if (arrayDeclMatch) {
+                declaredVariables.add(arrayDeclMatch[1]);
+            }
+
+            // Check for implicit declarations through assignment
+            const assignMatches = line.matchAll(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*=(?!=)/g);
+            for (const match of assignMatches) {
+                const varName = match[1];
+                // Skip if it's part of a comparison or in a control structure
+                const beforeAssign = line.substring(0, match.index).trim();
+                if (!beforeAssign.endsWith('=') && 
+                    !beforeAssign.endsWith('<') && 
+                    !beforeAssign.endsWith('>') && 
+                    !beforeAssign.includes('if') && 
+                    !beforeAssign.includes('while') && 
+                    !beforeAssign.includes('for')) {
+                    declaredVariables.add(varName);
+                }
             }
 
             // Track enum declarations
@@ -741,11 +836,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Reset block comment state and enum state for second pass
         globalInBlockComment = false;
         currentEnum = null;
+        currentFunction = null;
+        inFunctionParams = false;
 
         // Process each line
         lines.forEach((line, lineIndex) => {
             const trimmedLine = line.trim();
             
+            // Skip region directives
+            if (trimmedLine.startsWith('#region') || trimmedLine.startsWith('#endregion')) {
+                return;
+            }
+
             // Handle block comments
             if (trimmedLine.includes('/*')) {
                 globalInBlockComment = true;
@@ -754,22 +856,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 globalInBlockComment = false;
                 return;
             }
-            if (globalInBlockComment) {
-                return;
-            }
+            if (globalInBlockComment) return;
             
             // Skip empty lines and single-line comments
             if (trimmedLine === '' || trimmedLine.startsWith('//')) {
                 return;
-            }
-
-            // Track enum declarations
-            const enumMatch = line.match(/\benum\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\{/);
-            if (enumMatch) {
-                currentEnum = enumMatch[1];
-            }
-            if (currentEnum && line.includes('}')) {
-                currentEnum = null;
             }
 
             // Check for undefined variables
@@ -785,16 +876,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
 
                     // Handle global variables
-                    if (id === 'global') {
-                        return; // Skip the 'global' keyword itself
-                    }
+                    if (id === 'global') return;
                     
-                    // Check if this is a dot accessor (either before or after)
+                    // Check if this is a dot accessor
                     const beforeId = line.substring(0, idIndex).trim();
                     const afterId = line.substring(idIndex + id.length);
-                    if (beforeId.endsWith('.') || afterId.trim().startsWith('.')) {
-                        return; // Skip identifiers used with dot notation
-                    }
+                    if (beforeId.endsWith('.') || afterId.trim().startsWith('.')) return;
 
                     // Check if this is a global variable access
                     if (beforeId.endsWith('global.')) {
@@ -804,57 +891,39 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     // Check if this is a struct property declaration
                     const isInStruct = globalOpenBraces > 0 && line.includes(':') && !line.includes('function');
-                    if (isInStruct) {
-                        if (idIndex < line.indexOf(':')) {
-                            declaredVariables.add(id);
-                            return;
-                        }
+                    if (isInStruct && idIndex < line.indexOf(':')) {
+                        declaredVariables.add(id);
+                        return;
                     }
                     
-                    // Get the full identifier including any dots
+                    // Get the full identifier
                     const fullId = getWordAtPosition(line, idIndex).word;
+
+                    // Check if it's an asset reference
+                    if (isAssetReference(fullId)) return;
                     
                     // Check if it's in object-level scope
-                    if (objectLocalScope.has(fullId)) {
-                        return;
-                    }
+                    if (objectLocalScope.has(fullId)) return;
 
-                    // Check if this is an asset reference
-                    if (isAssetReference(fullId)) {
-                        return;
-                    }
-                    
-                    // Check global scope first - this includes functions, enums, and macros
-                    if (globalFunctions.has(fullId) || globalEnums.has(fullId) || globalMacros.has(fullId)) {
-                        return;
-                    }
+                    // Check if it's a function argument
+                    if (functionArguments.has(fullId)) return;
 
-                    // Check if it's a builtin function, constant, atom, keyword, or event
+                    // Check if it's a color literal
+                    const colorMatch = line.match(/#[0-9a-fA-F]{6}\b/);
+                    if (colorMatch && line.includes(colorMatch[0])) return;
+
+                    // Check global scope
+                    if (globalFunctions.has(fullId) || globalEnums.has(fullId) || globalMacros.has(fullId)) return;
+
+                    // Check if it's a builtin
                     if (builtinFunctions.has(fullId) || builtinConstants.has(fullId) || 
-                        builtinAtoms.has(fullId) || keywords.has(fullId) || eventConstants.has(fullId)) {
-                        return;
-                    }
+                        builtinAtoms.has(fullId) || keywords.has(fullId) || eventConstants.has(fullId)) return;
 
-                    // Check if it's a function declared in this file
-                    if (declaredFunctions.has(fullId)) {
-                        return;
-                    }
+                    // Check if it's a declared function
+                    if (declaredFunctions.has(fullId)) return;
                     
                     // Skip if it's an explicit declaration
                     if (line.includes('var ' + fullId) || line.includes('globalvar ' + fullId)) {
-                        declaredVariables.add(fullId);
-                        return;
-                    }
-                    
-                    // Skip if it's a function parameter
-                    if (line.match(new RegExp(`function\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s*\\([^)]*\\b${fullId}\\b`))) {
-                        declaredVariables.add(fullId);
-                        return;
-                    }
-
-                    // Check if it's an implicit declaration through assignment
-                    const assignmentMatch = line.match(new RegExp(`\\b${fullId}\\s*=(?!=)`));
-                    if (assignmentMatch) {
                         declaredVariables.add(fullId);
                         return;
                     }
