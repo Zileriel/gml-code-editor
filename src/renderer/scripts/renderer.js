@@ -47,7 +47,13 @@ function createFolderStructure(items) {
     const root = { children: {}, items: [] };
 
     for (const item of items) {
-        const pathParts = item.path.split('/');
+        // If path is empty, add to root items
+        if (!item.path) {
+            root.items.push(item);
+            continue;
+        }
+
+        const pathParts = item.path.split('/').filter(Boolean); // Remove empty strings
         let current = root;
 
         // Create folder structure
@@ -61,6 +67,67 @@ function createFolderStructure(items) {
         // Add item to the final folder
         current.items.push(item);
     }
+
+    // Sort items in each folder
+    function sortFolderContents(folder) {
+        // Sort items
+        folder.items.sort((a, b) => {
+            const aName = a.name || '';
+            const bName = b.name || '';
+            
+            // Extract numbers from the start of names if they exist
+            const aMatch = aName.match(/^(\d+)/);
+            const bMatch = bName.match(/^(\d+)/);
+            
+            // If both items start with numbers, compare numerically
+            if (aMatch && bMatch) {
+                const aNum = parseInt(aMatch[1], 10);
+                const bNum = parseInt(bMatch[1], 10);
+                if (aNum !== bNum) {
+                    return aNum - bNum;
+                }
+            }
+            // If only one starts with a number, put it first
+            else if (aMatch) return -1;
+            else if (bMatch) return 1;
+            
+            // Otherwise compare alphabetically
+            return aName.localeCompare(bName);
+        });
+
+        // Sort child folders
+        const sortedChildren = {};
+        Object.keys(folder.children)
+            .sort((a, b) => {
+                // Extract numbers from the start of names if they exist
+                const aMatch = a.match(/^(\d+)/);
+                const bMatch = b.match(/^(\d+)/);
+                
+                // If both items start with numbers, compare numerically
+                if (aMatch && bMatch) {
+                    const aNum = parseInt(aMatch[1], 10);
+                    const bNum = parseInt(bMatch[1], 10);
+                    if (aNum !== bNum) {
+                        return aNum - bNum;
+                    }
+                }
+                // If only one starts with a number, put it first
+                else if (aMatch) return -1;
+                else if (bMatch) return 1;
+                
+                // Otherwise compare alphabetically
+                return a.localeCompare(b);
+            })
+            .forEach(key => {
+                sortedChildren[key] = folder.children[key];
+                sortFolderContents(sortedChildren[key]); // Recursively sort children
+            });
+        
+        folder.children = sortedChildren;
+    }
+
+    // Sort the entire structure
+    sortFolderContents(root);
 
     return root;
 }

@@ -106,6 +106,41 @@ async function validateAndOpenProject(projectPath) {
     }
 }
 
+// Helper function to process folder path
+function processFolderPath(path) {
+    // Skip paths that don't represent folders (e.g. .yyp files)
+    if (!path.includes('folders/') || path.endsWith('.yyp')) {
+        return '';
+    }
+    // Remove 'folders/' prefix and '.yy' extension
+    return path.replace(/^folders\//, '').replace(/\.yy$/, '');
+}
+
+// Helper function to compare items for sorting
+function compareItems(a, b) {
+    const aName = a.name || '';
+    const bName = b.name || '';
+    
+    // Extract numbers from the start of names if they exist
+    const aMatch = aName.match(/^(\d+)/);
+    const bMatch = bName.match(/^(\d+)/);
+    
+    // If both items start with numbers, compare numerically
+    if (aMatch && bMatch) {
+        const aNum = parseInt(aMatch[1], 10);
+        const bNum = parseInt(bMatch[1], 10);
+        if (aNum !== bNum) {
+            return aNum - bNum;
+        }
+    }
+    // If only one starts with a number, put it first
+    else if (aMatch) return -1;
+    else if (bMatch) return 1;
+    
+    // Otherwise compare alphabetically
+    return aName.localeCompare(bName);
+}
+
 async function scanProjectAssets(projectPath) {
     const assets = {
         scripts: [],
@@ -132,6 +167,10 @@ async function scanProjectAssets(projectPath) {
 
     // Helper function to process folder path
     function processFolderPath(path) {
+        // Skip paths that don't represent folders (e.g. .yyp files)
+        if (!path.includes('folders/') || path.endsWith('.yyp')) {
+            return '';
+        }
         // Remove 'folders/' prefix and '.yy' extension
         return path.replace(/^folders\//, '').replace(/\.yy$/, '');
     }
@@ -200,6 +239,10 @@ async function scanProjectAssets(projectPath) {
     } catch (error) {
         console.error('Error scanning objects:', error);
     }
+
+    // Sort the assets
+    assets.scripts.sort(compareItems);
+    assets.objects.sort(compareItems);
 
     return assets;
 }
