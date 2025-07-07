@@ -515,30 +515,63 @@ document.addEventListener('DOMContentLoaded', async () => {
                 declaredFunctions.add(funcMatch[1]);
             }
 
-            // Check for undefined variables (basic check)
+            // Check for undefined variables (improved check)
             const identifiers = line.match(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g);
             if (identifiers) {
                 identifiers.forEach(id => {
-                    if (!keywords.has(id) && !builtinFunctions.has(id) && !builtinAtoms.has(id) && !builtinConstants.has(id) && !eventConstants.has(id)) {
+                    // Skip if it's an explicit declaration
+                    if (line.includes('var ' + id) || line.includes('globalvar ' + id)) {
+                        declaredVariables.add(id);
+                        return;
+                    }
+                    
+                    // Skip if it's a function parameter
+                    if (line.match(new RegExp(`function\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s*\\([^)]*\\b${id}\\b`))) {
+                        declaredVariables.add(id);
+                        return;
+                    }
+
+                    // Check if it's an implicit declaration through assignment
+                    const assignmentMatch = line.match(new RegExp(`\\b${id}\\s*=(?!=)`));
+                    if (assignmentMatch) {
+                        declaredVariables.add(id);
+                        return;
+                    }
+
+                    // Add to used variables if not a keyword/builtin
+                    if (!keywords.has(id) && !builtinFunctions.has(id) && !builtinAtoms.has(id) && 
+                        !builtinConstants.has(id) && !eventConstants.has(id)) {
                         usedVariables.add(id);
+                        
+                        // Check if variable is undeclared
+                        if (!declaredVariables.has(id)) {
+                            const index = line.indexOf(id);
+                            found.push({
+                                from: CodeMirror.Pos(lineIndex, index),
+                                to: CodeMirror.Pos(lineIndex, index + id.length),
+                                message: `Variable '${id}' is used but not declared`,
+                                severity: "warning"
+                            });
+                        }
                     }
                 });
             }
 
-            // 1. Check for empty assignments
-            if (/=\s*;/.test(line)) {
+            // 1. Check for empty assignments (improved)
+            const emptyAssignMatch = line.match(/\b[a-zA-Z_][a-zA-Z0-9_]*\s*=\s*$/);
+            if (emptyAssignMatch || /=\s*;/.test(line)) {
                 const match = line.match(/=/);
                 if (match) {
                     found.push({
                         from: CodeMirror.Pos(lineIndex, match.index),
-                        to: CodeMirror.Pos(lineIndex, line.indexOf(';') + 1),
+                        to: CodeMirror.Pos(lineIndex, line.length),
                         message: "Empty assignment - value is required",
                         severity: "error"
                     });
                 }
             }
 
-            // 2. Check for missing semicolons (improved)
+            // 2. Check for missing semicolons (severity changed to info)
             if (!/^\s*$/.test(line) && // not empty line
                 !/^\s*\/\//.test(line) && // not a comment
                 !/^\s*\/\*/.test(line) && // not a block comment
@@ -554,7 +587,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     from: CodeMirror.Pos(lineIndex, line.length),
                     to: CodeMirror.Pos(lineIndex, line.length),
                     message: "Missing semicolon",
-                    severity: "warning"
+                    severity: "info"
                 });
             }
 
@@ -573,7 +606,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
-            // 4. Check for assignment in conditions (FIXED)
+            // 4. Check for assignment in conditions (severity changed to info)
             const conditionAssignMatch = line.match(/\b(if|while)\s*\(\s*([^)]*[^=!<>]=(?!=)[^)]*)\s*\)/);
             if (conditionAssignMatch) {
                 // Make sure it's actually an assignment (single =) and not a comparison (==, !=, <=, >=)
@@ -583,7 +616,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         from: CodeMirror.Pos(lineIndex, conditionAssignMatch.index),
                         to: CodeMirror.Pos(lineIndex, conditionAssignMatch.index + conditionAssignMatch[0].length),
                         message: "Assignment in condition. Did you mean '==' for comparison?",
-                        severity: "warning"
+                        severity: "info"
                     });
                 }
             }
@@ -599,11 +632,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
 
-            // 7. Check for magic numbers
+            // 7. Check for magic numbers (improved)
             const magicNumberMatch = line.match(/\b(\d{3,})\b/);
             if (magicNumberMatch && !line.includes('//') && !isStringContext(line, magicNumberMatch.index)) {
                 const number = parseInt(magicNumberMatch[1]);
-                if (number > 255 && number !== 1000 && number !== 1024) { // Common exceptions
+                // Skip if it's a variable declaration or assignment
+                const isAssignment = line.match(new RegExp(`\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*${magicNumberMatch[1]}\\b`));
+                if (number > 255 && number !== 1000 && number !== 1024 && !isAssignment) {
                     found.push({
                         from: CodeMirror.Pos(lineIndex, magicNumberMatch.index),
                         to: CodeMirror.Pos(lineIndex, magicNumberMatch.index + magicNumberMatch[1].length),
