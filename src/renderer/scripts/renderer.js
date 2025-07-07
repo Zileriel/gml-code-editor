@@ -278,18 +278,13 @@ function displayObjectEvents(object) {
         // Create image element
         const img = document.createElement('img');
         img.alt = object.sprite.name;
-        console.log('Loading sprite:', object.sprite.imagePath);
 
         // Load sprite image
         window.api.invoke('read-sprite-image', object.sprite.imagePath)
             .then(base64Image => {
-                console.log('Received sprite data, length:', base64Image.length);
                 img.src = base64Image;
-                img.onload = () => console.log('Image loaded successfully');
-                img.onerror = (e) => console.error('Image failed to load:', e);
             })
             .catch(error => {
-                console.error('Failed to load sprite:', error);
                 showNotification(`Failed to load sprite: ${error.message}`, 'error');
             });
 
