@@ -7,6 +7,20 @@ let selectedObject = null;   // Currently selected object
 let featherEnabled = true;   // Code linting state
 let modifiedFiles = new Set(); // Track unsaved changes
 
+// Add this function near the top with other core functions
+async function loadScriptContent(scriptPath) {
+    try {
+        const content = await window.api.invoke('read-script-content', scriptPath);
+        // Update global scope with this script's content
+        updateGlobalScope(content);
+        return content;
+    } catch (error) {
+        console.error(`Error loading script ${scriptPath}:`, error);
+        showNotification(`Failed to load script: ${error.message}`, 'error');
+        return '';
+    }
+}
+
 // Language specification data
 let gmFunctions = [];  // Functions from XML
 let gmBuiltins = [];   // Built-in variables
@@ -24,6 +38,166 @@ const keywordSet = new Set([
     'finally', 'throw', 'delete', 'new', 'constructor', 'static', 'noone', 'global', 'local',
     'and', 'or', 'xor', 'not', 'div', 'mod', 'repeat', 'until', 'with'
 ]);
+
+// GameMaker asset prefixes
+const assetPrefixes = new Set([
+    'spr_',  // Sprites
+    'obj_',  // Objects
+    'rm_',   // Rooms
+    'fnt_',  // Fonts
+    'snd_',  // Sounds
+    'snd_',  // Music
+    'path_', // Paths
+    'scr_',  // Scripts
+    'sh_',   // Shaders
+    'seq_',  // Sequences
+    'psys_', // Particle Systems
+    'ts_',   // Tile sets (alternate)
+]);
+
+// Helper function to check if an identifier is an asset reference
+function isAssetReference(id) {
+    for (const prefix of assetPrefixes) {
+        if (id.startsWith(prefix)) return true;
+    }
+    return false;
+}
+
+// Global scope tracking
+const globalFunctions = new Set();
+const globalEnums = new Set();
+const globalMacros = new Set();
+
+// Update global scope from a script
+function updateGlobalScope(content) {
+    const lines = content.split('\n');
+    
+    // Track multi-line comment state
+    let inBlockComment = false;
+    let currentEnum = null;
+    
+    lines.forEach(line => {
+        const trimmedLine = line.trim();
+        
+        // Skip empty lines
+        if (trimmedLine === '') return;
+        
+        // Handle block comments
+        if (trimmedLine.startsWith('/*')) {
+            inBlockComment = true;
+        }
+        if (trimmedLine.endsWith('*/')) {
+            inBlockComment = false;
+            return;
+        }
+        if (inBlockComment) return;
+        
+        // Skip single-line comments
+        if (trimmedLine.startsWith('//')) return;
+        
+        // Check for function declarations
+        const funcMatch = line.match(/\bfunction\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/);
+        if (funcMatch) {
+            globalFunctions.add(funcMatch[1]);
+        }
+        
+        // Check for enum declarations
+        if (currentEnum === null) {
+            const enumMatch = line.match(/\benum\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\{?/);
+            if (enumMatch) {
+                currentEnum = enumMatch[1];
+                globalEnums.add(currentEnum);
+                
+                // If enum is declared on a single line
+                if (line.includes('{') && line.includes('}')) {
+                    const enumContent = line.substring(line.indexOf('{') + 1, line.lastIndexOf('}'));
+                    const members = enumContent.split(',').map(m => m.trim().split('=')[0].trim());
+                    members.forEach(member => {
+                        if (member) {
+                            globalEnums.add(member);
+                        }
+                    });
+                    currentEnum = null;
+                }
+            }
+        } else {
+            // Inside an enum declaration
+            if (line.includes('}')) {
+                currentEnum = null;
+            } else {
+                // Extract enum members
+                const members = line.split(',').map(m => m.trim().split('=')[0].trim());
+                members.forEach(member => {
+                    if (member && member !== '}') {
+                        globalEnums.add(member);
+                    }
+                });
+            }
+        }
+        
+        // Check for macro declarations
+        const macroMatch = line.match(/#macro\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+        if (macroMatch) {
+            globalMacros.add(macroMatch[1]);
+        }
+    });
+}
+
+// Initialize global scope by scanning all scripts
+async function initializeGlobalScope() {
+    try {
+        const scripts = await window.api.invoke('get-all-scripts');
+        if (!scripts || scripts.length === 0) {
+            console.log('No scripts found or no project open');
+            return;
+        }
+        
+        // Clear existing global scope
+        globalFunctions.clear();
+        globalEnums.clear();
+        globalMacros.clear();
+        
+        // First pass: collect all global declarations
+        for (const script of scripts) {
+            try {
+                const content = await window.api.invoke('read-script-content', script);
+                updateGlobalScope(content);
+            } catch (error) {
+                console.error(`Error reading script ${script}:`, error);
+            }
+        }
+        
+        console.log('Global scope initialized:', {
+            functions: Array.from(globalFunctions),
+            enums: Array.from(globalEnums),
+            macros: Array.from(globalMacros)
+        });
+    } catch (error) {
+        console.error('Error initializing global scope:', error);
+    }
+}
+
+// Call this when a project is opened
+function handleProjectOpened(projectData) {
+    console.log('Project opened:', projectData);
+    showNotification(`Project opened: ${projectData.path}`, 'success');
+    
+    // Clear all panels
+    clearEditor();
+    clearInspector();
+    clearAssetBrowser();
+    
+    // Clear existing global scope
+    globalFunctions.clear();
+    globalEnums.clear();
+    globalMacros.clear();
+    
+    // Initialize global scope
+    initializeGlobalScope().then(() => {
+        // Render new asset tree
+        renderAssetTree(projectData.assets);
+    });
+}
 
 // File Management Functions
 function markFileModified(filePath) {
@@ -310,7 +484,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             state.lastToken = 'builtin';
                             return 'builtin';
                         }
-                        if (atomSet.has(word)) {
+                        if (atomSet.has(word) || globalEnums.has(word) || globalMacros.has(word) || isAssetReference(word)) {
                             state.lastToken = 'atom';
                             return 'atom';
                         }
@@ -318,7 +492,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             state.lastToken = 'keyword';
                             return 'keyword';
                         }
-                        if (functionSet.has(word)) {
+                        if (functionSet.has(word) || globalFunctions.has(word)) {
                             state.lastToken = 'function';
                             state.isFunction = true;
                             return 'function';
@@ -365,46 +539,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             'global',  // Add global as a builtin constant
         ]);
         
-        // Clear macro and enum sets for this file
-        macroSet.clear();
-        enumSet.clear();
-        
-        // First pass: collect all macros and enums
-        let currentEnum = null;
-        lines.forEach((line, lineIndex) => {
-            const trimmedLine = line.trim();
-            
-            // Skip empty lines and single-line comments
-            if (trimmedLine === '' || trimmedLine.startsWith('//')) {
-                return;
-            }
-
-            // Check for macro definitions
-            const macroMatch = line.match(/#macro\s+([A-Z_][A-Z0-9_]*)\s+(.+)/);
-            if (macroMatch) {
-                macroSet.add(macroMatch[1]);
-            }
-
-            // Check for enum definitions
-            const enumMatch = line.match(/enum\s+([A-Z_][A-Z0-9_]*)\s*\{/);
-            if (enumMatch) {
-                currentEnum = enumMatch[1];
-                enumSet.add(currentEnum);
-            }
-            
-            // Check for enum values if inside an enum
-            if (currentEnum) {
-                const enumValueMatch = line.match(/\s*([A-Z_][A-Z0-9_]*)\s*(?:=\s*[-\d]+\s*)?[,}]/);
-                if (enumValueMatch) {
-                    enumSet.add(`${currentEnum}.${enumValueMatch[1]}`);
-                    enumSet.add(enumValueMatch[1]); // Also add the bare value
-                }
-                if (line.includes('}')) {
-                    currentEnum = null;
-                }
-            }
-        });
-
         // Common GML event constants
         const eventConstants = new Set([
             'ev_create', 'ev_destroy', 'ev_step', 'ev_alarm', 'ev_keyboard', 'ev_mouse',
@@ -503,21 +637,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         let globalInString = false;
         let globalStringChar = null;
         let globalInBlockComment = false;
+        let currentEnum = null;
 
-        // Process each line
+        // First pass: collect all function declarations in this file
         lines.forEach((line, lineIndex) => {
             const trimmedLine = line.trim();
             
-            // Skip empty lines and single-line comments
-            if (trimmedLine === '' || trimmedLine.startsWith('//')) {
+            // Handle block comments
+            if (trimmedLine.includes('/*')) {
+                globalInBlockComment = true;
+            }
+            if (trimmedLine.includes('*/')) {
+                globalInBlockComment = false;
                 return;
             }
-
-            // Check for variable declarations
-            const varMatch = line.match(/\b(var|globalvar)\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*)/);
-            if (varMatch) {
-                const variables = varMatch[2].split(',').map(v => v.trim());
-                variables.forEach(v => declaredVariables.add(v));
+            if (globalInBlockComment) {
+                return;
+            }
+            
+            // Skip empty lines and comments
+            if (trimmedLine === '' || trimmedLine.startsWith('//')) {
+                return;
             }
 
             // Check for function declarations
@@ -526,13 +666,59 @@ document.addEventListener('DOMContentLoaded', async () => {
                 declaredFunctions.add(funcMatch[1]);
             }
 
+            // Track enum declarations
+            const enumMatch = line.match(/\benum\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\{/);
+            if (enumMatch) {
+                currentEnum = enumMatch[1];
+            }
+            if (currentEnum && line.includes('}')) {
+                currentEnum = null;
+            }
+        });
+
+        // Reset block comment state and enum state for second pass
+        globalInBlockComment = false;
+        currentEnum = null;
+
+        // Process each line
+        lines.forEach((line, lineIndex) => {
+            const trimmedLine = line.trim();
+            
+            // Handle block comments
+            if (trimmedLine.includes('/*')) {
+                globalInBlockComment = true;
+            }
+            if (trimmedLine.includes('*/')) {
+                globalInBlockComment = false;
+                return;
+            }
+            if (globalInBlockComment) {
+                return;
+            }
+            
+            // Skip empty lines and single-line comments
+            if (trimmedLine === '' || trimmedLine.startsWith('//')) {
+                return;
+            }
+
+            // Track enum declarations
+            const enumMatch = line.match(/\benum\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\{/);
+            if (enumMatch) {
+                currentEnum = enumMatch[1];
+            }
+            if (currentEnum && line.includes('}')) {
+                currentEnum = null;
+            }
+
             // Check for undefined variables
             const identifiers = line.match(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g);
             if (identifiers) {
                 identifiers.forEach(id => {
                     const idIndex = line.indexOf(id);
-                    // Skip if in comment
-                    if (isCommentContext(line, idIndex)) {
+
+                    // Skip if in comment or string
+                    if (isCommentContext(line, idIndex) || isStringContext(line, idIndex) || 
+                        line.includes('/*') || line.includes('*/') || globalInBlockComment) {
                         return;
                     }
 
@@ -541,10 +727,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                         return; // Skip the 'global' keyword itself
                     }
                     
-                    // Check if this is a global variable access
+                    // Check if this is a dot accessor (either before or after)
                     const beforeId = line.substring(0, idIndex).trim();
+                    const afterId = line.substring(idIndex + id.length);
+                    if (beforeId.endsWith('.') || afterId.trim().startsWith('.')) {
+                        return; // Skip identifiers used with dot notation
+                    }
+
+                    // Check if this is a global variable access
                     if (beforeId.endsWith('global.')) {
-                        // Add to declared variables to prevent undefined warnings
                         declaredVariables.add(id);
                         return;
                     }
@@ -552,21 +743,35 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // Check if this is a struct property declaration
                     const isInStruct = globalOpenBraces > 0 && line.includes(':') && !line.includes('function');
                     if (isInStruct) {
-                        // Add both the property name and value to declared variables
-                        const colonIndex = line.indexOf(':');
-                        const beforeColon = line.substring(0, colonIndex).trim();
-                        const afterColon = line.substring(colonIndex + 1).trim();
-                        
-                        // If this identifier is before the colon, it's a property name
-                        if (idIndex < colonIndex) {
+                        if (idIndex < line.indexOf(':')) {
                             declaredVariables.add(id);
                             return;
                         }
-                        // If this identifier is after the colon, it's a value and should be checked
                     }
                     
                     // Get the full identifier including any dots
                     const fullId = getWordAtPosition(line, idIndex).word;
+                    
+                    // Check if this is an asset reference
+                    if (isAssetReference(fullId)) {
+                        return;
+                    }
+                    
+                    // Check global scope first - this includes functions, enums, and macros
+                    if (globalFunctions.has(fullId) || globalEnums.has(fullId) || globalMacros.has(fullId)) {
+                        return;
+                    }
+
+                    // Check if it's a builtin function, constant, atom, keyword, or event
+                    if (builtinFunctions.has(fullId) || builtinConstants.has(fullId) || 
+                        builtinAtoms.has(fullId) || keywords.has(fullId) || eventConstants.has(fullId)) {
+                        return;
+                    }
+
+                    // Check if it's a function declared in this file
+                    if (declaredFunctions.has(fullId)) {
+                        return;
+                    }
                     
                     // Skip if it's an explicit declaration
                     if (line.includes('var ' + fullId) || line.includes('globalvar ' + fullId)) {
@@ -580,11 +785,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         return;
                     }
 
-                    // Skip if it's a macro or enum
-                    if (macroSet.has(fullId) || enumSet.has(fullId)) {
-                        return;
-                    }
-
                     // Check if it's an implicit declaration through assignment
                     const assignmentMatch = line.match(new RegExp(`\\b${fullId}\\s*=(?!=)`));
                     if (assignmentMatch) {
@@ -592,21 +792,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                         return;
                     }
 
-                    // Add to used variables if not a keyword/builtin/macro/enum
-                    if (!keywords.has(fullId) && !builtinFunctions.has(fullId) && !builtinAtoms.has(fullId) && 
-                        !builtinConstants.has(fullId) && !eventConstants.has(fullId) && 
-                        !macroSet.has(fullId) && !enumSet.has(fullId)) {
-                        usedVariables.add(fullId);
-                        
-                        // Check if variable is undeclared
-                        if (!declaredVariables.has(fullId)) {
-                            found.push({
-                                from: CodeMirror.Pos(lineIndex, idIndex),
-                                to: CodeMirror.Pos(lineIndex, idIndex + fullId.length),
-                                message: `Variable '${fullId}' is used but not declared`,
-                                severity: "warning"
-                            });
-                        }
+                    // Add to used variables if not already handled
+                    usedVariables.add(fullId);
+                    
+                    // Check if variable is undeclared
+                    if (!declaredVariables.has(fullId)) {
+                        found.push({
+                            from: CodeMirror.Pos(lineIndex, idIndex),
+                            to: CodeMirror.Pos(lineIndex, idIndex + fullId.length),
+                            message: `Variable '${fullId}' is used but not declared`,
+                            severity: "warning"
+                        });
                     }
                 });
             }
@@ -718,16 +914,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
 
-            // 8. Check for incorrect resource access
-            const resourceMatch = line.match(/\b(sprite|sound|background|room|object|script|font|timeline|path)(\d+)\b/);
-            if (resourceMatch) {
-                found.push({
-                    from: CodeMirror.Pos(lineIndex, resourceMatch.index),
-                    to: CodeMirror.Pos(lineIndex, resourceMatch.index + resourceMatch[0].length),
-                    message: `Direct resource index '${resourceMatch[0]}' is deprecated. Use resource names instead.`,
-                    severity: "warning"
-                });
-            }
+
 
             // 9. Check for bracket and parenthesis matching
             let openParens = 0;
@@ -831,7 +1018,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (functionCallMatch) {
                 functionCallMatch.forEach(match => {
                     const funcName = match.replace(/\s*\($/, '');
-                    if (!builtinFunctions.has(funcName) && !declaredFunctions.has(funcName) && !keywords.has(funcName)) {
+                    // Skip if in comment, string, or accessed with dot
+                    const funcIndex = line.indexOf(match);
+                    if (isCommentContext(line, funcIndex) || isStringContext(line, funcIndex) || 
+                        line.includes('/*') || line.includes('*/') || globalInBlockComment) {
+                        return;
+                    }
+                    
+                    // Skip if accessed with dot notation
+                    const beforeFunc = line.substring(0, funcIndex).trim();
+                    if (beforeFunc.endsWith('.')) {
+                        return;
+                    }
+
+                    if (!builtinFunctions.has(funcName) && !declaredFunctions.has(funcName) && 
+                        !keywords.has(funcName) && !globalFunctions.has(funcName)) {
                         const index = line.indexOf(match);
                         found.push({
                             from: CodeMirror.Pos(lineIndex, index),
@@ -875,17 +1076,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     from: CodeMirror.Pos(lineIndex, line.indexOf('alarm[0] = -1')),
                     to: CodeMirror.Pos(lineIndex, line.indexOf('alarm[0] = -1') + 'alarm[0] = -1'.length),
                     message: "Setting alarm to -1 stops it. Use positive values to set alarm duration.",
-                    severity: "info"
-                });
-            }
-
-            // 14. Check for potential null reference issues
-            const nullRefMatch = line.match(/\b(\w+)\.(\w+)/);
-            if (nullRefMatch && !line.includes('if') && !line.includes('instance_exists')) {
-                found.push({
-                    from: CodeMirror.Pos(lineIndex, nullRefMatch.index),
-                    to: CodeMirror.Pos(lineIndex, nullRefMatch.index + nullRefMatch[0].length),
-                    message: "Potential null reference. Consider checking if instance exists first.",
                     severity: "info"
                 });
             }
@@ -1125,18 +1315,7 @@ function initializeProjectHandling() {
     });
 
     // Handle project opened
-    window.api.receive('project-opened', (projectData) => {
-        console.log('Project opened:', projectData);
-        showNotification(`Project opened: ${projectData.path}`, 'success');
-        
-        // Clear all panels
-        clearEditor();
-        clearInspector();
-        clearAssetBrowser();
-        
-        // Render new asset tree
-        renderAssetTree(projectData.assets);
-    });
+    window.api.receive('project-opened', handleProjectOpened);
 }
 
 function renderAssetTree(assets) {
@@ -1312,16 +1491,12 @@ function createTreeItem(item, itemType) {
                 // Clear the inspector
                 clearInspector();
                 
-                // Load script content into editor
-                try {
-                    const content = await window.api.invoke('read-script-content', item.gmlFile);
-                    editor.setValue(content || '');
-                    editor.filePath = item.gmlFile; // Set the file path
-                    editor.refresh();
-                    updateEditorHeader(`Editor - ${item.name}`);
-                } catch (error) {
-                    showNotification(`Failed to load script: ${error.message}`, 'error');
-                }
+                // Load script content into editor and update global scope
+                const content = await loadScriptContent(item.gmlFile);
+                editor.setValue(content || '');
+                editor.filePath = item.gmlFile;
+                editor.refresh();
+                updateEditorHeader(`Editor - ${item.name}`);
             } else if (itemType === 'object') {
                 // Store selected object
                 selectedObject = item;
@@ -1487,16 +1662,12 @@ function displayObjectEvents(object) {
             eventItem.classList.toggle('selected');
 
             if (eventItem.classList.contains('selected')) {
-                try {
-                    // Load event content into editor
-                    const content = await window.api.invoke('read-script-content', event.file);
-                    editor.setValue(content || '');
-                    editor.filePath = event.file; // Set the file path
-                    editor.refresh();
-                    updateEditorHeader(`Editor - ${object.name} - ${displayName}`);
-                } catch (error) {
-                    showNotification(`Failed to load event: ${error.message}`, 'error');
-                }
+                // Load event content into editor and update global scope
+                const content = await loadScriptContent(event.file); // Use event.file instead of event.gmlFile
+                editor.setValue(content || '');
+                editor.filePath = event.file; // Use event.file instead of event.gmlFile
+                editor.refresh();
+                updateEditorHeader(`Editor - ${object.name} - ${displayName}`);
             } else {
                 // Clear editor when deselected
                 clearEditor();

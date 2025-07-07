@@ -4,6 +4,7 @@ const fs = require('fs').promises;
 
 // State management
 const STATE_FILE = path.join(app.getPath('userData'), 'app-state.json');
+let currentProject = null; // Add this to track current project
 
 async function loadState() {
     try {
@@ -39,22 +40,21 @@ async function createWindow() {
 
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
     mainWindow.webContents.openDevTools();
-    createMenu();
 
-    // Load last opened project
+    // Load state once and use it for both menu and project loading
     const state = await loadState();
+    createMenu(state);
+
     if (state.lastProjectPath) {
         // Wait a bit for the renderer to initialize
         setTimeout(() => {
-            validateAndOpenProject(state.lastProjectPath);
+            openProject(state.lastProjectPath);
         }, 1000);
     }
 }
 
 // Create application menu with file operations and view controls
-async function createMenu() {
-    const state = await loadState();
-    
+function createMenu(state) {
     const template = [
         {
             label: 'File',
@@ -69,7 +69,7 @@ async function createMenu() {
 
                         if (!result.canceled) {
                             const projectPath = result.filePaths[0];
-                            validateAndOpenProject(projectPath);
+                            openProject(projectPath);
                         }
                     }
                 },
@@ -78,7 +78,7 @@ async function createMenu() {
                     enabled: state.lastProjectPath !== null,
                     click: async () => {
                         if (state.lastProjectPath) {
-                            validateAndOpenProject(state.lastProjectPath);
+                            openProject(state.lastProjectPath);
                         }
                     }
                 },
@@ -128,9 +128,10 @@ async function createMenu() {
     Menu.setApplicationMenu(menu);
 }
 
-// Validate and load GameMaker project directory
-async function validateAndOpenProject(projectPath) {
+// Handle project opening
+async function openProject(projectPath) {
     try {
+        // Validate project directory
         const files = await fs.readdir(projectPath);
         const hasYypFile = files.some(file => file.endsWith('.yyp'));
 
@@ -139,17 +140,24 @@ async function validateAndOpenProject(projectPath) {
             return;
         }
 
+        // Set current project path
+        currentProject = projectPath;
+        
+        // Scan for assets
         const assets = await scanProjectAssets(projectPath);
+        
+        // Save to state
+        const state = { lastProjectPath: projectPath };
+        await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2));
+        
+        // Notify renderer
         mainWindow.webContents.send('project-opened', {
             path: projectPath,
             assets: assets
         });
-
-        // Save the project path in app state
-        await saveState({ lastProjectPath: projectPath });
-
     } catch (error) {
-        mainWindow.webContents.send('project-error', `Error opening project: ${error.message}`);
+        console.error('Error opening project:', error);
+        mainWindow.webContents.send('project-error', `Failed to open project: ${error.message}`);
     }
 }
 
@@ -377,6 +385,46 @@ ipcMain.handle('read-functions-xml', async () => {
         return await fs.readFile(xmlPath, 'utf8');
     } catch (error) {
         throw new Error(`Failed to read functions.xml: ${error.message}`);
+    }
+});
+
+// Add IPC handler for getting all script paths
+ipcMain.handle('get-all-scripts', async () => {
+    try {
+        const scripts = [];
+        
+        // Helper function to recursively scan directories
+        async function scanDirectory(dirPath) {
+            const entries = await fs.readdir(dirPath, { withFileTypes: true });
+            
+            for (const entry of entries) {
+                const fullPath = path.join(dirPath, entry.name);
+                
+                if (entry.isDirectory()) {
+                    await scanDirectory(fullPath);
+                } else if (entry.name.endsWith('.gml')) {
+                    scripts.push(fullPath);
+                }
+            }
+        }
+        
+        // Scan scripts directory
+        if (currentProject) {
+            const scriptsPath = path.join(currentProject, 'scripts');
+            if (await fs.stat(scriptsPath).then(() => true).catch(() => false)) {
+                await scanDirectory(scriptsPath);
+            }
+            
+            // Also scan objects directory for event scripts
+            const objectsPath = path.join(currentProject, 'objects');
+            if (await fs.stat(objectsPath).then(() => true).catch(() => false)) {
+                await scanDirectory(objectsPath);
+            }
+        }
+        
+        return scripts;
+    } catch (error) {
+        throw new Error(`Failed to get script paths: ${error.message}`);
     }
 });
 

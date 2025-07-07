@@ -17,7 +17,14 @@ contextBridge.exposeInMainWorld(
             }
         },
         invoke: (channel, data) => {
-            let validChannels = ['read-script-content', 'update-object-property', 'read-sprite-image', 'read-functions-xml', 'save-file'];
+            let validChannels = [
+                'read-script-content',
+                'update-object-property',
+                'read-sprite-image',
+                'read-functions-xml',
+                'save-file',
+                'get-all-scripts'
+            ];
             if (validChannels.includes(channel)) {
                 return ipcRenderer.invoke(channel, data);
             }
