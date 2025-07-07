@@ -3,115 +3,132 @@
 
 let editor; // CodeMirror instance
 let selectedObject = null; // Currently selected object
+let gmFunctions = []; // Will be populated from XML
+let gmBuiltins = []; // Will be populated from XML
+let gmAtoms = []; // Will be populated from XML
+
+// Function to parse the functions XML and populate arrays
+async function loadGMLanguageSpec() {
+    try {
+        const xmlContent = await window.api.invoke('read-functions-xml');
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
+        
+        // Check for XML parsing errors
+        const parserError = xmlDoc.querySelector('parsererror');
+        if (parserError) {
+            throw new Error('Failed to parse functions.xml: Invalid XML format');
+        }
+
+        // Load functions
+        const functions = xmlDoc.getElementsByTagName("Function");
+        if (!functions || functions.length === 0) {
+            throw new Error('No functions found in functions.xml');
+        }
+        
+        gmFunctions = Array.from(functions).map(func => {
+            const name = func.getAttribute("Name");
+            const description = func.getElementsByTagName("Description")[0]?.textContent?.trim() || '';
+            const parameters = Array.from(func.getElementsByTagName("Parameter")).map(param => {
+                const paramName = param.getAttribute("Name");
+                const paramType = param.getAttribute("Type");
+                const isOptional = param.getAttribute("Optional") === "true";
+                const paramDesc = param.textContent?.trim() || '';
+                return {
+                    name: paramName,
+                    type: paramType,
+                    optional: isOptional,
+                    description: paramDesc
+                };
+            });
+
+            // Create the function signature
+            let signature = name + "(";
+            signature += parameters.map(p => {
+                let paramText = p.name;
+                if (p.optional) {
+                    paramText = `[${paramText}]`;
+                }
+                return paramText;
+            }).join(", ");
+            signature += ")";
+
+            // Create the full hint text including parameters
+            let hintText = description + "\n\nParameters:";
+            if (parameters.length > 0) {
+                hintText += "\n" + parameters.map(p => {
+                    let paramText = `${p.name} (${p.type})`;
+                    if (p.optional) {
+                        paramText = `[${paramText}]`;
+                    }
+                    return `• ${paramText}: ${p.description}`;
+                }).join("\n");
+            } else {
+                hintText += "\nNone";
+            }
+
+            return {
+                text: signature,
+                displayText: name,
+                hint: hintText
+            };
+        });
+
+        // Load variables
+        const variables = xmlDoc.getElementsByTagName("Variable");
+        if (variables && variables.length > 0) {
+            gmBuiltins = Array.from(variables).map(variable => {
+                const name = variable.getAttribute("Name");
+                const description = variable.getElementsByTagName("Description")[0]?.textContent?.trim() || '';
+                const type = variable.getAttribute("Type") || '';
+                return {
+                    text: name,
+                    displayText: name,
+                    hint: `${description}\nType: ${type}`
+                };
+            });
+        }
+
+        // Load constants
+        const constants = xmlDoc.getElementsByTagName("Constant");
+        if (constants && constants.length > 0) {
+            gmAtoms = Array.from(constants).map(constant => {
+                const name = constant.getAttribute("Name");
+                const description = constant.getElementsByTagName("Description")[0]?.textContent?.trim() || '';
+                const value = constant.getAttribute("Value") || '';
+                return {
+                    text: name,
+                    displayText: name,
+                    hint: `${description}\nValue: ${value}`
+                };
+            });
+        }
+
+        console.log(`Successfully loaded GameMaker language spec:
+            • ${gmFunctions.length} functions
+            • ${gmBuiltins.length} variables
+            • ${gmAtoms.length} constants`);
+        showNotification(`Loaded GameMaker language specification`, 'success');
+    } catch (error) {
+        console.error("Error loading GM language spec:", error);
+        showNotification(`Failed to load GameMaker language spec: ${error.message}`, 'error');
+        // Initialize with empty arrays to prevent errors
+        gmFunctions = [];
+        gmBuiltins = [];
+        gmAtoms = [];
+    }
+}
 
 // Example of sending a message to the main process
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     console.log('Renderer process started');
     
-    // Add GameMaker built-in variables to JavaScript mode
-    const gmBuiltins = [
-        // Instance variables
-        'x', 'y', 'xprevious', 'yprevious', 'xstart', 'ystart',
-        'hspeed', 'vspeed', 'direction', 'speed', 'friction',
-        'gravity', 'gravity_direction', 'solid', 'persistent',
-        'depth', 'visible', 'sprite_index', 'image_index',
-        'image_speed', 'image_alpha', 'image_angle', 'image_blend',
-        'image_xscale', 'image_yscale', 'mask_index', 'bbox_left',
-        'bbox_right', 'bbox_top', 'bbox_bottom', 'alarm',
-        
-        // Room and game variables
-        'room', 'room_speed', 'fps', 'fps_real', 'current_time',
-        'current_year', 'current_month', 'current_day', 'current_weekday',
-        'current_hour', 'current_minute', 'current_second',
-        
-        // Input variables
-        'mouse_x', 'mouse_y', 'mouse_button', 'mouse_lastbutton',
-        'keyboard_key', 'keyboard_lastkey', 'keyboard_string',
-        
-        // System variables
-        'game_id', 'working_directory', 'temp_directory',
-        'program_directory', 'delta_time', 'instance_count',
-        'instance_id', 'object_index',
-        
-        // Common game variables
-        'score', 'lives', 'health',
-        
-        // Timeline variables
-        'timeline_index', 'timeline_position', 'timeline_speed',
-        
-        // Path variables
-        'path_index', 'path_position', 'path_speed',
-        'path_orientation', 'path_endaction'
-    ];
-
-    // GameMaker specific keywords
+    // Load GM language spec from XML
+    await loadGMLanguageSpec();
+    
+    // Add GameMaker keywords
     const gmKeywords = [
         'begin', 'end', 'exit', 'repeat', 'until', 'with'
-    ];
-
-    // GameMaker atoms (constants, instance references, etc.)
-    const gmAtoms = [
-        // Instance references
-        'self', 'other', 'all', 'noone', 'global', 'local',
-        
-        // Data type atoms
-        'true', 'false', 'undefined', 'pointer_null', 'pointer_invalid',
-        
-        // Draw functions
-        'draw_set_color', 'draw_set_alpha', 'draw_get_color', 'draw_get_alpha',
-        
-        // Action functions
-        'action_inherit', 'action_execute_script',
-        
-        // Color constants
-        'c_red', 'c_green', 'c_blue', 'c_white', 'c_black', 'c_yellow',
-        'c_fuchsia', 'c_aqua', 'c_purple', 'c_orange', 'c_gray', 'c_dkgray',
-        'c_ltgray', 'c_maroon', 'c_navy', 'c_olive',
-        
-        // Alignment constants
-        'fa_left', 'fa_center', 'fa_right', 'fa_top', 'fa_middle', 'fa_bottom',
-        
-        // Blend mode constants
-        'bm_normal', 'bm_add', 'bm_subtract', 'bm_max', 'bm_multiply',
-        
-        // Event constants
-        'ev_create', 'ev_destroy', 'ev_step', 'ev_alarm', 'ev_keyboard',
-        'ev_mouse', 'ev_collision', 'ev_draw', 'ev_draw_begin', 'ev_draw_end',
-        'ev_draw_pre', 'ev_draw_post', 'ev_keypress', 'ev_keyrelease',
-        'ev_trigger', 'ev_left_button', 'ev_right_button', 'ev_middle_button',
-        'ev_no_button', 'ev_left_press', 'ev_right_press', 'ev_middle_press',
-        'ev_left_release', 'ev_right_release', 'ev_middle_release',
-        'ev_mouse_enter', 'ev_mouse_leave', 'ev_mouse_wheel_up',
-        'ev_mouse_wheel_down', 'ev_global_left_button', 'ev_global_right_button',
-        'ev_global_middle_button', 'ev_global_left_press',
-        'ev_global_right_press', 'ev_global_middle_press',
-        'ev_global_left_release', 'ev_global_right_release',
-        'ev_global_middle_release', 'ev_joystick1_left', 'ev_joystick1_right',
-        'ev_joystick1_up', 'ev_joystick1_down', 'ev_joystick1_button1',
-        'ev_joystick1_button2', 'ev_joystick1_button3', 'ev_joystick1_button4',
-        'ev_joystick1_button5', 'ev_joystick1_button6', 'ev_joystick1_button7',
-        'ev_joystick1_button8',
-        
-        // Step constants
-        'ev_step_normal', 'ev_step_begin', 'ev_step_end'
-    ];
-
-    // GameMaker built-in functions with descriptions
-    const gmFunctions = [
-        { text: 'instance_create(x, y, obj)', displayText: 'instance_create', hint: 'Creates an instance of obj at position (x,y)' },
-        { text: 'instance_destroy()', displayText: 'instance_destroy', hint: 'Destroys the calling instance' },
-        { text: 'show_message(str)', displayText: 'show_message', hint: 'Shows a popup message box with the given string' },
-        { text: 'random(n)', displayText: 'random', hint: 'Returns a random number between 0 and n' },
-        { text: 'random_range(n1, n2)', displayText: 'random_range', hint: 'Returns a random number between n1 and n2' },
-        { text: 'point_distance(x1, y1, x2, y2)', displayText: 'point_distance', hint: 'Returns the distance between points (x1,y1) and (x2,y2)' },
-        { text: 'point_direction(x1, y1, x2, y2)', displayText: 'point_direction', hint: 'Returns the direction from (x1,y1) to (x2,y2) in degrees' },
-        { text: 'lengthdir_x(len, dir)', displayText: 'lengthdir_x', hint: 'Returns the x-component of a vector with length len and direction dir' },
-        { text: 'lengthdir_y(len, dir)', displayText: 'lengthdir_y', hint: 'Returns the y-component of a vector with length len and direction dir' },
-        { text: 'place_meeting(x, y, obj)', displayText: 'place_meeting', hint: 'Returns true if instance would collide with obj at (x,y)' },
-        { text: 'collision_point(x, y, obj, prec, notme)', displayText: 'collision_point', hint: 'Checks for collision at point (x,y)' },
-        { text: 'move_towards_point(x, y, sp)', displayText: 'move_towards_point', hint: 'Moves instance towards point (x,y) with speed sp' },
-        { text: 'motion_add(dir, spd)', displayText: 'motion_add', hint: 'Adds motion in direction dir with speed spd' },
-        { text: 'motion_set(dir, spd)', displayText: 'motion_set', hint: 'Sets motion in direction dir with speed spd' }
     ];
 
     // Register custom hint function
@@ -199,39 +216,91 @@ document.addEventListener('DOMContentLoaded', () => {
     CodeMirror.defineMode("gamemaker", function(config) {
         const jsMode = CodeMirror.getMode(config, "javascript");
         
+        // Create sets for faster lookups
+        const builtinSet = new Set(gmBuiltins.map(b => b.text));
+        const atomSet = new Set(gmAtoms.map(a => a.text));
+        const functionSet = new Set(gmFunctions.map(f => f.displayText));
+        const keywordSet = new Set(gmKeywords);
+
         return {
             startState: function() {
                 return {
                     jsState: CodeMirror.startState(jsMode),
-                    inString: false
+                    inString: false,
+                    lastToken: null,
+                    isFunction: false,
+                    parenDepth: 0  // Track nested parentheses
                 };
             },
             token: function(stream, state) {
-                // Check for GameMaker keywords, atoms, and built-ins
+                // Check for strings first to avoid matching keywords inside strings
+                if (!state.inString) {
+                    if (stream.peek() === '"' || stream.peek() === "'") {
+                        state.inString = !state.inString;
+                    }
+                }
+
+                // Handle function calls and their parentheses
+                if (state.isFunction && stream.peek() === '(') {
+                    state.parenDepth++;
+                    stream.next();
+                    return 'bracket function-bracket';
+                }
+
+                // Handle closing parentheses for functions
+                if (state.parenDepth > 0 && stream.peek() === ')') {
+                    state.parenDepth--;
+                    stream.next();
+                    if (state.parenDepth === 0) {
+                        state.isFunction = false;
+                    }
+                    return 'bracket function-bracket';
+                }
+
+                // Reset function state when not followed by parenthesis
+                if (state.isFunction && stream.peek() !== '(' && state.parenDepth === 0) {
+                    state.isFunction = false;
+                }
+
+                // Check for GameMaker specific tokens
                 if (!state.inString) {
                     const ch = stream.peek();
                     if (/[a-zA-Z_]/.test(ch)) {
                         const word = stream.match(/[a-zA-Z_]\w*/)[0];
-                        if (gmBuiltins.includes(word)) {
+                        
+                        // Check each type of token
+                        if (builtinSet.has(word)) {
+                            state.lastToken = 'builtin';
                             return 'builtin';
                         }
-                        if (gmKeywords.includes(word)) {
-                            return 'keyword';
-                        }
-                        if (gmAtoms.includes(word)) {
+                        if (atomSet.has(word)) {
+                            state.lastToken = 'atom';
                             return 'atom';
                         }
+                        if (keywordSet.has(word)) {
+                            state.lastToken = 'keyword';
+                            return 'keyword';
+                        }
+                        if (functionSet.has(word)) {
+                            state.lastToken = 'function';
+                            state.isFunction = true;
+                            return 'function';
+                        }
+
                         // Let JavaScript mode handle other cases
                         stream.backUp(word.length);
                     }
                 }
-                
-                // Handle strings to avoid matching built-ins inside them
+
+                // Handle strings to avoid matching keywords inside them
                 if (stream.peek() === '"' || stream.peek() === "'") {
                     state.inString = !state.inString;
                 }
-                
-                return jsMode.token(stream, state.jsState);
+
+                // Get the token from JavaScript mode
+                const token = jsMode.token(stream, state.jsState);
+                state.lastToken = token;
+                return token;
             },
             indent: function(state, textAfter) {
                 return jsMode.indent(state.jsState, textAfter);
@@ -244,6 +313,19 @@ document.addEventListener('DOMContentLoaded', () => {
             closeBrackets: jsMode.closeBrackets
         };
     });
+
+    // Update CSS classes for syntax highlighting
+    const customCSS = `
+        .cm-s-ambiance .cm-builtin { color: #58E55A !important; }
+        .cm-s-ambiance .cm-atom { color: #FF8080 !important; }
+        .cm-s-ambiance .cm-keyword, .cm-s-ambiance .cm-function { color: #FFB871 !important; }
+        .cm-s-ambiance .cm-function-bracket { color: #FFB871 !important; }
+    `;
+
+    // Add custom CSS to the document
+    const style = document.createElement('style');
+    style.textContent = customCSS;
+    document.head.appendChild(style);
     
     // Initialize CodeMirror with our custom mode
     editor = CodeMirror.fromTextArea(document.getElementById('code-editor'), {

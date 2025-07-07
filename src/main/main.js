@@ -344,6 +344,15 @@ ipcMain.handle('read-sprite-image', async (event, imagePath) => {
     }
 });
 
+ipcMain.handle('read-functions-xml', async () => {
+    try {
+        const xmlPath = path.join(app.getAppPath(), 'functions.xml');
+        return await fs.readFile(xmlPath, 'utf8');
+    } catch (error) {
+        throw new Error(`Failed to read functions.xml: ${error.message}`);
+    }
+});
+
 app.whenReady().then(() => {
     createWindow();
 
