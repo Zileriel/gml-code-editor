@@ -14,6 +14,8 @@ let gmAtoms = [];      // Constants
 let builtinSet = new Set();
 let atomSet = new Set();
 let functionSet = new Set();
+let macroSet = new Set();  // Track defined macros
+let enumSet = new Set();   // Track enum values
 
 // GameMaker language keywords
 const keywordSet = new Set([
@@ -242,7 +244,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Add different types of completions
         addCompletions(gmBuiltins, 'builtin');
-        addCompletions(gmKeywords, 'keyword');
+        addCompletions(Array.from(keywordSet), 'keyword');
         addCompletions(gmAtoms, 'constant');
         addCompletions(gmFunctions, 'function');
 
@@ -354,12 +356,55 @@ document.addEventListener('DOMContentLoaded', async () => {
         const found = [];
         const lines = text.split('\n');
         
-        // Use the dynamically loaded sets (fallback to empty sets if not loaded)
+        // Use the dynamically loaded sets
         const keywords = typeof keywordSet !== 'undefined' ? keywordSet : new Set();
         const builtinFunctions = typeof functionSet !== 'undefined' ? functionSet : new Set();
         const builtinAtoms = typeof atomSet !== 'undefined' ? atomSet : new Set();
-        const builtinConstants = typeof builtinSet !== 'undefined' ? builtinSet : new Set();
+        const builtinConstants = new Set([
+            ...builtinSet, // Built-in variables
+            'global',  // Add global as a builtin constant
+        ]);
         
+        // Clear macro and enum sets for this file
+        macroSet.clear();
+        enumSet.clear();
+        
+        // First pass: collect all macros and enums
+        let currentEnum = null;
+        lines.forEach((line, lineIndex) => {
+            const trimmedLine = line.trim();
+            
+            // Skip empty lines and single-line comments
+            if (trimmedLine === '' || trimmedLine.startsWith('//')) {
+                return;
+            }
+
+            // Check for macro definitions
+            const macroMatch = line.match(/#macro\s+([A-Z_][A-Z0-9_]*)\s+(.+)/);
+            if (macroMatch) {
+                macroSet.add(macroMatch[1]);
+            }
+
+            // Check for enum definitions
+            const enumMatch = line.match(/enum\s+([A-Z_][A-Z0-9_]*)\s*\{/);
+            if (enumMatch) {
+                currentEnum = enumMatch[1];
+                enumSet.add(currentEnum);
+            }
+            
+            // Check for enum values if inside an enum
+            if (currentEnum) {
+                const enumValueMatch = line.match(/\s*([A-Z_][A-Z0-9_]*)\s*(?:=\s*[-\d]+\s*)?[,}]/);
+                if (enumValueMatch) {
+                    enumSet.add(`${currentEnum}.${enumValueMatch[1]}`);
+                    enumSet.add(enumValueMatch[1]); // Also add the bare value
+                }
+                if (line.includes('}')) {
+                    currentEnum = null;
+                }
+            }
+        });
+
         // Common GML event constants
         const eventConstants = new Set([
             'ev_create', 'ev_destroy', 'ev_step', 'ev_alarm', 'ev_keyboard', 'ev_mouse',
@@ -404,8 +449,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         function isCommentContext(line, pos) {
+            // Check for single-line comments
             const commentStart = line.indexOf('//');
-            return commentStart !== -1 && pos >= commentStart;
+            if (commentStart !== -1 && pos >= commentStart) {
+                // Make sure the comment isn't inside a string
+                let inString = false;
+                let stringChar = null;
+                for (let i = 0; i < commentStart; i++) {
+                    if ((line[i] === '"' || line[i] === "'") && (i === 0 || line[i-1] !== '\\')) {
+                        if (!inString) {
+                            inString = true;
+                            stringChar = line[i];
+                        } else if (line[i] === stringChar) {
+                            inString = false;
+                        }
+                    }
+                }
+                return !inString;
+            }
+            return false;
         }
 
         function getWordAtPosition(line, pos) {
@@ -468,37 +530,80 @@ document.addEventListener('DOMContentLoaded', async () => {
             const identifiers = line.match(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g);
             if (identifiers) {
                 identifiers.forEach(id => {
-                    // Skip if it's an explicit declaration
-                    if (line.includes('var ' + id) || line.includes('globalvar ' + id)) {
+                    const idIndex = line.indexOf(id);
+                    // Skip if in comment
+                    if (isCommentContext(line, idIndex)) {
+                        return;
+                    }
+
+                    // Handle global variables
+                    if (id === 'global') {
+                        return; // Skip the 'global' keyword itself
+                    }
+                    
+                    // Check if this is a global variable access
+                    const beforeId = line.substring(0, idIndex).trim();
+                    if (beforeId.endsWith('global.')) {
+                        // Add to declared variables to prevent undefined warnings
                         declaredVariables.add(id);
+                        return;
+                    }
+
+                    // Check if this is a struct property declaration
+                    const isInStruct = globalOpenBraces > 0 && line.includes(':') && !line.includes('function');
+                    if (isInStruct) {
+                        // Add both the property name and value to declared variables
+                        const colonIndex = line.indexOf(':');
+                        const beforeColon = line.substring(0, colonIndex).trim();
+                        const afterColon = line.substring(colonIndex + 1).trim();
+                        
+                        // If this identifier is before the colon, it's a property name
+                        if (idIndex < colonIndex) {
+                            declaredVariables.add(id);
+                            return;
+                        }
+                        // If this identifier is after the colon, it's a value and should be checked
+                    }
+                    
+                    // Get the full identifier including any dots
+                    const fullId = getWordAtPosition(line, idIndex).word;
+                    
+                    // Skip if it's an explicit declaration
+                    if (line.includes('var ' + fullId) || line.includes('globalvar ' + fullId)) {
+                        declaredVariables.add(fullId);
                         return;
                     }
                     
                     // Skip if it's a function parameter
-                    if (line.match(new RegExp(`function\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s*\\([^)]*\\b${id}\\b`))) {
-                        declaredVariables.add(id);
+                    if (line.match(new RegExp(`function\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s*\\([^)]*\\b${fullId}\\b`))) {
+                        declaredVariables.add(fullId);
+                        return;
+                    }
+
+                    // Skip if it's a macro or enum
+                    if (macroSet.has(fullId) || enumSet.has(fullId)) {
                         return;
                     }
 
                     // Check if it's an implicit declaration through assignment
-                    const assignmentMatch = line.match(new RegExp(`\\b${id}\\s*=(?!=)`));
+                    const assignmentMatch = line.match(new RegExp(`\\b${fullId}\\s*=(?!=)`));
                     if (assignmentMatch) {
-                        declaredVariables.add(id);
+                        declaredVariables.add(fullId);
                         return;
                     }
 
-                    // Add to used variables if not a keyword/builtin
-                    if (!keywords.has(id) && !builtinFunctions.has(id) && !builtinAtoms.has(id) && 
-                        !builtinConstants.has(id) && !eventConstants.has(id)) {
-                        usedVariables.add(id);
+                    // Add to used variables if not a keyword/builtin/macro/enum
+                    if (!keywords.has(fullId) && !builtinFunctions.has(fullId) && !builtinAtoms.has(fullId) && 
+                        !builtinConstants.has(fullId) && !eventConstants.has(fullId) && 
+                        !macroSet.has(fullId) && !enumSet.has(fullId)) {
+                        usedVariables.add(fullId);
                         
                         // Check if variable is undeclared
-                        if (!declaredVariables.has(id)) {
-                            const index = line.indexOf(id);
+                        if (!declaredVariables.has(fullId)) {
                             found.push({
-                                from: CodeMirror.Pos(lineIndex, index),
-                                to: CodeMirror.Pos(lineIndex, index + id.length),
-                                message: `Variable '${id}' is used but not declared`,
+                                from: CodeMirror.Pos(lineIndex, idIndex),
+                                to: CodeMirror.Pos(lineIndex, idIndex + fullId.length),
+                                message: `Variable '${fullId}' is used but not declared`,
                                 severity: "warning"
                             });
                         }
@@ -531,7 +636,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 !/\{\s*$/.test(line) && // doesn't end with opening brace
                 !/^\s*#/.test(line) && // not a preprocessor directive
                 !/^\s*(if|else|for|while|do|switch|case|default|with|repeat|function|enum|macro)\b/.test(line) && // not control structure
-                !/^\s*\w+:/.test(line)) { // not a label
+                !/^\s*\w+:/.test(line) && // not a label
+                // Skip comma-separated lines inside curly braces
+                !(/,\s*$/.test(line) && globalOpenBraces > 0)) {
                 found.push({
                     from: CodeMirror.Pos(lineIndex, line.length),
                     to: CodeMirror.Pos(lineIndex, line.length),
@@ -585,9 +692,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             const magicNumberMatch = line.match(/\b(\d{3,})\b/);
             if (magicNumberMatch && !line.includes('//') && !isStringContext(line, magicNumberMatch.index)) {
                 const number = parseInt(magicNumberMatch[1]);
-                // Skip if it's a variable declaration or assignment
+                // Skip if it's a variable declaration, assignment, macro, or enum value
                 const isAssignment = line.match(new RegExp(`\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*${magicNumberMatch[1]}\\b`));
-                if (number > 255 && number !== 1000 && number !== 1024 && !isAssignment) {
+                const isMacro = line.match(/#macro\s+[A-Z_][A-Z0-9_]*\s+/);
+                const isEnum = currentEnum || line.match(/enum\s+[A-Z_][A-Z0-9_]*\s*\{/);
+                
+                if (number > 255 && number !== 1000 && number !== 1024 && 
+                    !isAssignment && !isMacro && !isEnum) {
                     found.push({
                         from: CodeMirror.Pos(lineIndex, magicNumberMatch.index),
                         to: CodeMirror.Pos(lineIndex, magicNumberMatch.index + magicNumberMatch[1].length),
@@ -1378,9 +1489,9 @@ function displayObjectEvents(object) {
             if (eventItem.classList.contains('selected')) {
                 try {
                     // Load event content into editor
-                    const content = await window.api.invoke('read-script-content', event.gmlFile);
+                    const content = await window.api.invoke('read-script-content', event.file);
                     editor.setValue(content || '');
-                    editor.filePath = event.gmlFile; // Set the file path
+                    editor.filePath = event.file; // Set the file path
                     editor.refresh();
                     updateEditorHeader(`Editor - ${object.name} - ${displayName}`);
                 } catch (error) {
