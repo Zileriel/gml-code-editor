@@ -7,6 +7,12 @@ let selectedObject = null;   // Currently selected object
 let featherEnabled = true;   // Code linting state
 let modifiedFiles = new Set(); // Track unsaved changes
 
+// Asset tracking for autocompletion
+let assetCompletions = {
+    objects: new Set(),  // Set of object names
+    scripts: new Set()   // Set of script names
+};
+
 // Object-level scope tracking
 let currentObjectEvents = new Map(); // Map of event file paths to their content
 let objectLocalScope = new Set();    // Set of variables declared in any event of current object
@@ -520,6 +526,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         addCompletions(Array.from(keywordSet), 'keyword');
         addCompletions(gmAtoms, 'constant');
         addCompletions(gmFunctions, 'function');
+        
+        // Add asset completions
+        addCompletions(Array.from(assetCompletions.objects), 'asset');
+        addCompletions(Array.from(assetCompletions.scripts), 'asset');
 
         return {
             list: list,
@@ -1442,6 +1452,10 @@ function clearAssetBrowser() {
     const objectsRoot = document.querySelector('#objects-root .tree-content');
     scriptsRoot.innerHTML = '';
     objectsRoot.innerHTML = '';
+    
+    // Clear asset completions
+    assetCompletions.objects.clear();
+    assetCompletions.scripts.clear();
 }
 
 function initializeProjectHandling() {
@@ -1610,6 +1624,11 @@ function createTreeItem(item, itemType) {
         <i class="bi ${icon}"></i>
         <span>${item.name}</span>
     `;
+
+    // Add to asset completions
+    if (itemType === 'script' || itemType === 'object') {
+        assetCompletions[itemType + 's'].add(item.name);
+    }
 
     element.addEventListener('click', async (e) => {
         // Remove selection from other items
