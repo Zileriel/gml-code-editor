@@ -7,7 +7,53 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize panel resizing
     initializePanelResizing();
+
+    // Initialize project handling
+    initializeProjectHandling();
 });
+
+function initializeProjectHandling() {
+    // Handle project errors
+    window.api.receive('project-error', (errorMessage) => {
+        showNotification(errorMessage, 'error');
+    });
+
+    // Handle project opened
+    window.api.receive('project-opened', (projectData) => {
+        console.log('Project opened:', projectData);
+        showNotification(`Project opened: ${projectData.path}`, 'success');
+        // TODO: Update UI with project files
+    });
+}
+
+function showNotification(message, type = 'info') {
+    // Create notification container if it doesn't exist
+    let container = document.getElementById('notification-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'notification-container';
+        document.body.appendChild(container);
+    }
+
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+
+    // Add to container
+    container.appendChild(notification);
+
+    // Remove after 5 seconds
+    setTimeout(() => {
+        notification.classList.add('fade-out');
+        setTimeout(() => {
+            notification.remove();
+            if (container.children.length === 0) {
+                container.remove();
+            }
+        }, 300);
+    }, 5000);
+}
 
 function initializePanelResizing() {
     const inspectorDivider = document.getElementById('inspector-divider');
