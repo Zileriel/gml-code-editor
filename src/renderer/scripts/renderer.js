@@ -41,7 +41,59 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Path variables
         'path_index', 'path_position', 'path_speed',
-        'path_orientation', 'path_endaction',
+        'path_orientation', 'path_endaction'
+    ];
+
+    // GameMaker event keywords (these will be highlighted as keywords)
+    const gmKeywords = [
+        'begin', 'end', 'exit', 'repeat', 'until', 'with'
+    ];
+
+    // GameMaker atoms (constants, instance references, etc.)
+    const gmAtoms = [
+        // Instance references
+        'self', 'other', 'all', 'noone', 'global', 'local',
+        
+        // Data type atoms
+        'true', 'false', 'undefined', 'pointer_null', 'pointer_invalid',
+        
+        // Draw functions
+        'draw_set_color', 'draw_set_alpha', 'draw_get_color', 'draw_get_alpha',
+        
+        // Action functions
+        'action_inherit', 'action_execute_script',
+        
+        // Color constants
+        'c_red', 'c_green', 'c_blue', 'c_white', 'c_black', 'c_yellow',
+        'c_fuchsia', 'c_aqua', 'c_purple', 'c_orange', 'c_gray', 'c_dkgray',
+        'c_ltgray', 'c_maroon', 'c_navy', 'c_olive',
+        
+        // Alignment constants
+        'fa_left', 'fa_center', 'fa_right', 'fa_top', 'fa_middle', 'fa_bottom',
+        
+        // Blend mode constants
+        'bm_normal', 'bm_add', 'bm_subtract', 'bm_max', 'bm_multiply',
+        
+        // Event constants
+        'ev_create', 'ev_destroy', 'ev_step', 'ev_alarm', 'ev_keyboard',
+        'ev_mouse', 'ev_collision', 'ev_draw', 'ev_draw_begin', 'ev_draw_end',
+        'ev_draw_pre', 'ev_draw_post', 'ev_keypress', 'ev_keyrelease',
+        'ev_trigger', 'ev_left_button', 'ev_right_button', 'ev_middle_button',
+        'ev_no_button', 'ev_left_press', 'ev_right_press', 'ev_middle_press',
+        'ev_left_release', 'ev_right_release', 'ev_middle_release',
+        'ev_mouse_enter', 'ev_mouse_leave', 'ev_mouse_wheel_up',
+        'ev_mouse_wheel_down', 'ev_global_left_button', 'ev_global_right_button',
+        'ev_global_middle_button', 'ev_global_left_press',
+        'ev_global_right_press', 'ev_global_middle_press',
+        'ev_global_left_release', 'ev_global_right_release',
+        'ev_global_middle_release', 'ev_joystick1_left', 'ev_joystick1_right',
+        'ev_joystick1_up', 'ev_joystick1_down', 'ev_joystick1_button1',
+        'ev_joystick1_button2', 'ev_joystick1_button3', 'ev_joystick1_button4',
+        'ev_joystick1_button5', 'ev_joystick1_button6', 'ev_joystick1_button7',
+        'ev_joystick1_button8',
+        
+        // Step constants
+        'ev_step_normal', 'ev_step_begin', 'ev_step_end'
     ];
 
     // Define a custom mode that extends JavaScript
@@ -56,13 +108,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             },
             token: function(stream, state) {
-                // Check for GameMaker built-ins
+                // Check for GameMaker keywords, atoms, and built-ins
                 if (!state.inString) {
                     const ch = stream.peek();
                     if (/[a-zA-Z_]/.test(ch)) {
                         const word = stream.match(/[a-zA-Z_]\w*/)[0];
                         if (gmBuiltins.includes(word)) {
                             return 'builtin';
+                        }
+                        if (gmKeywords.includes(word)) {
+                            return 'keyword';
+                        }
+                        if (gmAtoms.includes(word)) {
+                            return 'atom';
                         }
                         // Let JavaScript mode handle other cases
                         stream.backUp(word.length);
