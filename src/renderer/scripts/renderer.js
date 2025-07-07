@@ -29,6 +29,29 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeProjectHandling();
 });
 
+function updateEditorHeader(title = 'Editor') {
+    const editorHeader = document.querySelector('#editor .panel-header');
+    editorHeader.textContent = title;
+}
+
+function clearEditor() {
+    editor.setValue('');
+    editor.refresh();
+    updateEditorHeader();
+}
+
+function clearInspector() {
+    const inspectorContent = document.querySelector('#inspector .panel-content');
+    inspectorContent.innerHTML = '';
+}
+
+function clearAssetBrowser() {
+    const scriptsRoot = document.querySelector('#scripts-root .tree-content');
+    const objectsRoot = document.querySelector('#objects-root .tree-content');
+    scriptsRoot.innerHTML = '';
+    objectsRoot.innerHTML = '';
+}
+
 function initializeProjectHandling() {
     // Handle project errors
     window.api.receive('project-error', (errorMessage) => {
@@ -39,6 +62,13 @@ function initializeProjectHandling() {
     window.api.receive('project-opened', (projectData) => {
         console.log('Project opened:', projectData);
         showNotification(`Project opened: ${projectData.path}`, 'success');
+        
+        // Clear all panels
+        clearEditor();
+        clearInspector();
+        clearAssetBrowser();
+        
+        // Render new asset tree
         renderAssetTree(projectData.assets);
     });
 }
@@ -221,6 +251,7 @@ function createTreeItem(item, itemType) {
                     const content = await window.api.invoke('read-script-content', item.gmlFile);
                     editor.setValue(content || '');
                     editor.refresh();
+                    updateEditorHeader(`Editor - ${item.name}`);
                 } catch (error) {
                     showNotification(`Failed to load script: ${error.message}`, 'error');
                 }
@@ -232,15 +263,13 @@ function createTreeItem(item, itemType) {
                 displayObjectEvents(item);
                 
                 // Clear the editor
-                editor.setValue('');
-                editor.refresh();
+                clearEditor();
             }
         } else {
             // If deselected, clear everything
             selectedObject = null;
             clearInspector();
-            editor.setValue('');
-            editor.refresh();
+            clearEditor();
         }
 
         // Log the item details
@@ -248,11 +277,6 @@ function createTreeItem(item, itemType) {
     });
 
     return element;
-}
-
-function clearInspector() {
-    const inspectorContent = document.querySelector('#inspector .panel-content');
-    inspectorContent.innerHTML = '';
 }
 
 function displayObjectEvents(object) {
@@ -401,9 +425,12 @@ function displayObjectEvents(object) {
                     const content = await window.api.invoke('read-script-content', event.file);
                     editor.setValue(content || '');
                     editor.refresh();
+                    updateEditorHeader(`Editor - ${displayName}`);
                 } catch (error) {
                     showNotification(`Failed to load event code: ${error.message}`, 'error');
                 }
+            } else {
+                clearEditor();
             }
         });
 
