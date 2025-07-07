@@ -227,6 +227,12 @@ async function scanProjectAssets(projectPath) {
                             name: folder,
                             path: processFolderPath(yyData.parent.path),
                             type: 'object',
+                            yyPath: path.join(folderPath, yyFile),
+                            yy: {
+                                visible: yyData.visible,
+                                persistent: yyData.persistent,
+                                solid: yyData.solid
+                            },
                             events: eventFiles.map(f => ({
                                 name: f.replace('.gml', ''),
                                 file: path.join(folderPath, f)
@@ -254,6 +260,52 @@ ipcMain.handle('read-script-content', async (event, scriptPath) => {
         return content;
     } catch (error) {
         throw new Error(`Failed to read script: ${error.message}`);
+    }
+});
+
+// Add IPC handler for updating object properties
+ipcMain.handle('update-object-property', async (event, { objectPath, property, value }) => {
+    try {
+        // Read the .yy file
+        const content = await fs.readFile(objectPath, 'utf8');
+        
+        // First, try to parse the content as-is
+        let yyData;
+        try {
+            yyData = JSON.parse(content);
+        } catch (e) {
+            // If parsing fails, try to clean up the content first
+            const cleanContent = content
+                // Remove multiple consecutive commas
+                .replace(/,\s*,/g, ',')
+                // Remove trailing commas before closing brackets/braces
+                .replace(/,(\s*[}\]])/g, '$1')
+                // Ensure property names are quoted
+                .replace(/([\{\,]\s*)([%$\w]+)(\s*:)/g, '$1"$2"$3');
+            
+            yyData = JSON.parse(cleanContent);
+        }
+
+        // Update the property
+        yyData[property] = value;
+
+        // Convert back to string with proper GameMaker formatting
+        let updatedContent = JSON.stringify(yyData, null, 2);
+
+        // Apply GameMaker's formatting style
+        updatedContent = updatedContent
+            // Add trailing commas after closing quotes and braces when followed by a closing brace
+            .replace(/(".*?"|[}\]])([\r\n]\s*[}\]])/g, '$1,$2')
+            // Remove any double commas that might have been created
+            .replace(/,\s*,/g, ',')
+            // Remove trailing comma at the very end of the file
+            .replace(/,(\s*})$/, '$1');
+
+        // Write back to file
+        await fs.writeFile(objectPath, updatedContent, 'utf8');
+        return true;
+    } catch (error) {
+        throw new Error(`Failed to update object property: ${error.message}`);
     }
 });
 

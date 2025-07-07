@@ -259,6 +259,69 @@ function displayObjectEvents(object) {
     const inspectorContent = document.querySelector('#inspector .panel-content');
     clearInspector();
 
+    // Create Properties section
+    const propertiesSection = document.createElement('div');
+    propertiesSection.className = 'inspector-section';
+
+    const propertiesHeader = document.createElement('div');
+    propertiesHeader.className = 'inspector-section-header';
+    propertiesHeader.innerHTML = '<i class="bi bi-gear"></i> Properties';
+    propertiesSection.appendChild(propertiesHeader);
+
+    const propertiesContent = document.createElement('div');
+    propertiesContent.className = 'inspector-section-content';
+
+    // Add property checkboxes
+    const properties = [
+        { name: 'visible', label: 'Visible' },
+        { name: 'persistent', label: 'Persistent' },
+        { name: 'solid', label: 'Solid' }
+    ];
+
+    properties.forEach(prop => {
+        const propertyItem = document.createElement('div');
+        propertyItem.className = 'property-item';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `property-${prop.name}`;
+        checkbox.checked = object.yy ? object.yy[prop.name] : true; // Default to true if no yy data
+
+        checkbox.addEventListener('change', async () => {
+            try {
+                await window.api.invoke('update-object-property', {
+                    objectPath: object.yyPath,
+                    property: prop.name,
+                    value: checkbox.checked
+                });
+                showNotification(`Updated ${prop.label.toLowerCase()} property`, 'success');
+            } catch (error) {
+                showNotification(`Failed to update property: ${error.message}`, 'error');
+                checkbox.checked = !checkbox.checked; // Revert the checkbox
+            }
+        });
+
+        const label = document.createElement('label');
+        label.htmlFor = `property-${prop.name}`;
+        label.textContent = prop.label;
+
+        propertyItem.appendChild(checkbox);
+        propertyItem.appendChild(label);
+        propertiesContent.appendChild(propertyItem);
+    });
+
+    propertiesSection.appendChild(propertiesContent);
+    inspectorContent.appendChild(propertiesSection);
+
+    // Create Events section
+    const eventsSection = document.createElement('div');
+    eventsSection.className = 'inspector-section';
+
+    const eventsHeader = document.createElement('div');
+    eventsHeader.className = 'inspector-section-header';
+    eventsHeader.innerHTML = '<i class="bi bi-code-square"></i> Events';
+    eventsSection.appendChild(eventsHeader);
+
     // Create events list
     const eventsList = document.createElement('div');
     eventsList.className = 'events-list';
@@ -306,7 +369,8 @@ function displayObjectEvents(object) {
         eventsList.appendChild(eventItem);
     });
 
-    inspectorContent.appendChild(eventsList);
+    eventsSection.appendChild(eventsList);
+    inspectorContent.appendChild(eventsSection);
 }
 
 function showNotification(message, type = 'info') {
