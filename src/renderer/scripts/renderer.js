@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'path_orientation', 'path_endaction'
     ];
 
-    // GameMaker event keywords (these will be highlighted as keywords)
+    // GameMaker specific keywords
     const gmKeywords = [
         'begin', 'end', 'exit', 'repeat', 'until', 'with'
     ];
@@ -95,6 +95,105 @@ document.addEventListener('DOMContentLoaded', () => {
         // Step constants
         'ev_step_normal', 'ev_step_begin', 'ev_step_end'
     ];
+
+    // GameMaker built-in functions with descriptions
+    const gmFunctions = [
+        { text: 'instance_create(x, y, obj)', displayText: 'instance_create', hint: 'Creates an instance of obj at position (x,y)' },
+        { text: 'instance_destroy()', displayText: 'instance_destroy', hint: 'Destroys the calling instance' },
+        { text: 'show_message(str)', displayText: 'show_message', hint: 'Shows a popup message box with the given string' },
+        { text: 'random(n)', displayText: 'random', hint: 'Returns a random number between 0 and n' },
+        { text: 'random_range(n1, n2)', displayText: 'random_range', hint: 'Returns a random number between n1 and n2' },
+        { text: 'point_distance(x1, y1, x2, y2)', displayText: 'point_distance', hint: 'Returns the distance between points (x1,y1) and (x2,y2)' },
+        { text: 'point_direction(x1, y1, x2, y2)', displayText: 'point_direction', hint: 'Returns the direction from (x1,y1) to (x2,y2) in degrees' },
+        { text: 'lengthdir_x(len, dir)', displayText: 'lengthdir_x', hint: 'Returns the x-component of a vector with length len and direction dir' },
+        { text: 'lengthdir_y(len, dir)', displayText: 'lengthdir_y', hint: 'Returns the y-component of a vector with length len and direction dir' },
+        { text: 'place_meeting(x, y, obj)', displayText: 'place_meeting', hint: 'Returns true if instance would collide with obj at (x,y)' },
+        { text: 'collision_point(x, y, obj, prec, notme)', displayText: 'collision_point', hint: 'Checks for collision at point (x,y)' },
+        { text: 'move_towards_point(x, y, sp)', displayText: 'move_towards_point', hint: 'Moves instance towards point (x,y) with speed sp' },
+        { text: 'motion_add(dir, spd)', displayText: 'motion_add', hint: 'Adds motion in direction dir with speed spd' },
+        { text: 'motion_set(dir, spd)', displayText: 'motion_set', hint: 'Sets motion in direction dir with speed spd' }
+    ];
+
+    // Register custom hint function
+    CodeMirror.registerHelper("hint", "gamemaker", function(editor, options) {
+        const cursor = editor.getCursor();
+        const token = editor.getTokenAt(cursor);
+        const start = token.start;
+        const end = cursor.ch;
+        const line = cursor.line;
+        const currentWord = token.string;
+
+        const list = [];
+
+        // Function to add completions that match the current word
+        function addCompletions(items, itemType) {
+            for (const item of items) {
+                const text = typeof item === 'string' ? item : item.displayText;
+                const displayText = typeof item === 'string' ? item : item.displayText;
+                const searchText = typeof item === 'string' ? item : item.displayText;
+                
+                if (searchText.toLowerCase().startsWith(currentWord.toLowerCase())) {
+                    const completion = {
+                        text: text,
+                        displayText: displayText,
+                        type: itemType,
+                        from: CodeMirror.Pos(line, start),
+                        to: CodeMirror.Pos(line, end),
+                        render: function(element, self, data) {
+                            const div = document.createElement('div');
+                            div.style.display = 'flex';
+                            div.style.justifyContent = 'space-between';
+                            div.style.alignItems = 'center';
+                            
+                            const textSpan = document.createElement('span');
+                            textSpan.textContent = data.displayText;
+                            div.appendChild(textSpan);
+                            
+                            if (data.type) {
+                                const typeSpan = document.createElement('span');
+                                typeSpan.textContent = data.type;
+                                typeSpan.style.marginLeft = '10px';
+                                typeSpan.style.opacity = '0.7';
+                                typeSpan.style.fontSize = '0.9em';
+                                div.appendChild(typeSpan);
+                            }
+                            
+                            element.appendChild(div);
+
+                            // Set tooltip for functions
+                            if (itemType === 'function' && typeof item === 'object' && item.hint) {
+                                element.title = item.hint;
+                            }
+                        }
+                    };
+
+                    // For functions, add a custom completion handler
+                    if (itemType === 'function') {
+                        const originalText = completion.text;
+                        completion.text = originalText + "()";
+                        completion.callback = function(cm) {
+                            const pos = cm.getCursor();
+                            cm.setCursor({line: pos.line, ch: pos.ch - 1});
+                        };
+                    }
+
+                    list.push(completion);
+                }
+            }
+        }
+
+        // Add different types of completions
+        addCompletions(gmBuiltins, 'builtin');
+        addCompletions(gmKeywords, 'keyword');
+        addCompletions(gmAtoms, 'constant');
+        addCompletions(gmFunctions, 'function');
+
+        return {
+            list: list,
+            from: CodeMirror.Pos(line, start),
+            to: CodeMirror.Pos(line, end)
+        };
+    });
 
     // Define a custom mode that extends JavaScript
     CodeMirror.defineMode("gamemaker", function(config) {
@@ -179,23 +278,80 @@ document.addEventListener('DOMContentLoaded', () => {
         autofocus: true,
         scrollbarStyle: "native",
         
-        // Extra features
+        // Key bindings
         extraKeys: {
-            "Ctrl-Q": function(cm) { 
-                cm.foldCode(cm.getCursor()); 
-            },
+            "Ctrl-Space": "autocomplete",
+            "Ctrl-Q": function(cm) { cm.foldCode(cm.getCursor()); },
             "Ctrl-/": "toggleComment",
             "Cmd-/": "toggleComment",
-            Tab: function(cm) {
+            "Shift-Tab": "indentLess",
+            "Tab": function(cm) {
                 if (cm.somethingSelected()) {
                     cm.indentSelection("add");
                 } else {
                     cm.replaceSelection("    ", "end", "+input");
                 }
-            },
-            "Shift-Tab": function(cm) {
-                cm.indentSelection("subtract");
             }
+        },
+        
+        // Enable automatic autocompletion
+        hintOptions: {
+            hint: CodeMirror.hint.gamemaker,
+            completeSingle: false,
+            alignWithWord: true,
+            closeOnUnfocus: true,
+            completeOnSingleClick: true,
+            customKeys: {
+                Up: function(cm, handle) { handle.moveFocus(-1); },
+                Down: function(cm, handle) { handle.moveFocus(1); },
+                PageUp: function(cm, handle) { handle.moveFocus(-10); },
+                PageDown: function(cm, handle) { handle.moveFocus(10); },
+                Home: function(cm, handle) { handle.setFocus(0); },
+                End: function(cm, handle) { handle.setFocus(handle.length - 1); },
+                Enter: function(cm, handle) {
+                    handle.pick();
+                }
+            }
+        }
+    });
+
+    // Enable automatic autocompletion as you type
+    editor.on("inputRead", function(cm, change) {
+        if (!change.text[0] || change.text[0] === ' ' || change.text[0] === '\n') return;
+        const token = cm.getTokenAt(cm.getCursor());
+        if (token.string.length >= 1) {
+            cm.showHint({ completeSingle: false });
+        }
+    });
+
+    // Handle completion selection
+    editor.on("pick", function(item) {
+        if (item.callback) {
+            item.callback(editor);
+        }
+    });
+
+    // Add key handler for Tab
+    editor.on("keydown", function(cm, event) {
+        if (event.key === 'Tab' && cm.state.completionActive) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    });
+
+    // Add mouse click handling for autocompletion
+    editor.on("mousedown", function(cm, e) {
+        const target = e.target;
+        if (target.className === 'CodeMirror-hint') {
+            const data = cm.state.completionActive.data;
+            const completion = data.list[target.hintId];
+            if (completion.hint && typeof completion.hint === 'function') {
+                completion.hint(cm, data, completion);
+            } else {
+                data.pick();
+            }
+            e.preventDefault();
+            e.stopPropagation();
         }
     });
 
