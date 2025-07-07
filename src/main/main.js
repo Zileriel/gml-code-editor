@@ -247,6 +247,16 @@ async function scanProjectAssets(projectPath) {
     return assets;
 }
 
+// Add IPC handler for reading script content
+ipcMain.handle('read-script-content', async (event, scriptPath) => {
+    try {
+        const content = await fs.readFile(scriptPath, 'utf8');
+        return content;
+    } catch (error) {
+        throw new Error(`Failed to read script: ${error.message}`);
+    }
+});
+
 app.whenReady().then(() => {
     createWindow();
 

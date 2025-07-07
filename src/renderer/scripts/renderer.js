@@ -1,10 +1,26 @@
 // This file contains the renderer process code
 // You can safely use the exposed 'api' object here
 
+let editor; // CodeMirror instance
+
 // Example of sending a message to the main process
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Renderer process started');
     
+    // Initialize CodeMirror
+    editor = CodeMirror.fromTextArea(document.getElementById('code-editor'), {
+        mode: 'javascript',
+        theme: 'monokai',
+        lineNumbers: true,
+        autoCloseBrackets: true,
+        matchBrackets: true,
+        indentUnit: 4,
+        tabSize: 4,
+        indentWithTabs: false,
+        lineWrapping: false,
+        readOnly: false
+    });
+
     // Initialize panel resizing
     initializePanelResizing();
 
@@ -183,7 +199,7 @@ function createTreeItem(item, itemType) {
         <span>${item.name}</span>
     `;
 
-    element.addEventListener('click', (e) => {
+    element.addEventListener('click', async (e) => {
         // Remove selection from other items
         document.querySelectorAll('.tree-item.selected').forEach(item => {
             if (item !== element) {
@@ -193,6 +209,17 @@ function createTreeItem(item, itemType) {
 
         // Toggle selection on this item
         element.classList.toggle('selected');
+
+        // If this is a script, load its content into the editor
+        if (itemType === 'script' && element.classList.contains('selected')) {
+            try {
+                const content = await window.api.invoke('read-script-content', item.gmlFile);
+                editor.setValue(content || '');
+                editor.refresh();
+            } catch (error) {
+                showNotification(`Failed to load script: ${error.message}`, 'error');
+            }
+        }
 
         // Log the item details
         console.log(`Selected ${itemType}:`, item);

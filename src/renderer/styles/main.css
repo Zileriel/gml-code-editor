@@ -240,5 +240,36 @@ body {
 }
 
 .tree-item.folder i {
-    color: #c09553;
+    color: #dcb67a;
+} 
+
+/* CodeMirror styles */
+.panel-content {
+    display: flex;
+    flex-direction: column;
+}
+
+#editor .panel-content {
+    padding: 0;
+}
+
+.CodeMirror {
+    height: 100% !important;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* Make the editor background match our theme */
+.CodeMirror, .CodeMirror-gutters {
+    background-color: #1e1e1e !important;
+    border: none;
+}
+
+.CodeMirror-selected {
+    background-color: #264f78 !important;
+}
+
+.CodeMirror-cursor {
+    border-left-color: #ffffff !important;
 } 
