@@ -259,6 +259,52 @@ function displayObjectEvents(object) {
     const inspectorContent = document.querySelector('#inspector .panel-content');
     clearInspector();
 
+    // Create Sprite section if the object has a sprite
+    if (object.sprite) {
+        const spriteSection = document.createElement('div');
+        spriteSection.className = 'inspector-section';
+
+        const spriteHeader = document.createElement('div');
+        spriteHeader.className = 'inspector-section-header';
+        spriteHeader.innerHTML = '<i class="bi bi-image"></i> Sprite';
+        spriteSection.appendChild(spriteHeader);
+
+        const spriteContent = document.createElement('div');
+        spriteContent.className = 'inspector-section-content';
+
+        const spritePreview = document.createElement('div');
+        spritePreview.className = 'sprite-preview';
+
+        // Create image element
+        const img = document.createElement('img');
+        img.alt = object.sprite.name;
+        console.log('Loading sprite:', object.sprite.imagePath);
+
+        // Load sprite image
+        window.api.invoke('read-sprite-image', object.sprite.imagePath)
+            .then(base64Image => {
+                console.log('Received sprite data, length:', base64Image.length);
+                img.src = base64Image;
+                img.onload = () => console.log('Image loaded successfully');
+                img.onerror = (e) => console.error('Image failed to load:', e);
+            })
+            .catch(error => {
+                console.error('Failed to load sprite:', error);
+                showNotification(`Failed to load sprite: ${error.message}`, 'error');
+            });
+
+        // Add sprite name
+        const spriteName = document.createElement('div');
+        spriteName.className = 'sprite-name';
+        spriteName.textContent = object.sprite.name;
+
+        spritePreview.appendChild(img);
+        spritePreview.appendChild(spriteName);
+        spriteContent.appendChild(spritePreview);
+        spriteSection.appendChild(spriteContent);
+        inspectorContent.appendChild(spriteSection);
+    }
+
     // Create Properties section
     const propertiesSection = document.createElement('div');
     propertiesSection.className = 'inspector-section';

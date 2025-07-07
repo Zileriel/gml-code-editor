@@ -223,6 +223,31 @@ async function scanProjectAssets(projectPath) {
                 if (yyFile && eventFiles.length > 0) {
                     const yyData = await readYyFile(path.join(folderPath, yyFile));
                     if (yyData && yyData.parent) {
+                        // Get sprite information if available
+                        let spriteInfo = null;
+                        if (yyData.spriteId) {
+                            const spritePath = path.join(projectPath, yyData.spriteId.path);
+                            try {
+                                const spriteYyData = await readYyFile(spritePath);
+                                if (spriteYyData && spriteYyData.frames && spriteYyData.frames.length > 0) {
+                                    const frameName = spriteYyData.frames[0].name;
+                                    const spriteDirPath = path.dirname(spritePath);
+                                    const imagePath = path.join(spriteDirPath, frameName + '.png');
+                                    console.log('Sprite image path:', imagePath);
+                                    // Verify the file exists
+                                    await fs.access(imagePath);
+                                    spriteInfo = {
+                                        name: yyData.spriteId.name,
+                                        imagePath: imagePath,
+                                        width: spriteYyData.width,
+                                        height: spriteYyData.height
+                                    };
+                                }
+                            } catch (error) {
+                                console.error('Error reading sprite data:', error);
+                            }
+                        }
+
                         assets.objects.push({
                             name: folder,
                             path: processFolderPath(yyData.parent.path),
@@ -233,6 +258,7 @@ async function scanProjectAssets(projectPath) {
                                 persistent: yyData.persistent,
                                 solid: yyData.solid
                             },
+                            sprite: spriteInfo,
                             events: eventFiles.map(f => ({
                                 name: f.replace('.gml', ''),
                                 file: path.join(folderPath, f)
@@ -306,6 +332,20 @@ ipcMain.handle('update-object-property', async (event, { objectPath, property, v
         return true;
     } catch (error) {
         throw new Error(`Failed to update object property: ${error.message}`);
+    }
+});
+
+// Add IPC handler for reading sprite images
+ipcMain.handle('read-sprite-image', async (event, imagePath) => {
+    try {
+        console.log('Reading sprite image from:', imagePath);
+        const imageBuffer = await fs.readFile(imagePath);
+        const base64Data = imageBuffer.toString('base64');
+        console.log('Image loaded successfully, size:', imageBuffer.length, 'bytes');
+        return `data:image/png;base64,${base64Data}`;
+    } catch (error) {
+        console.error('Failed to read sprite image:', error);
+        throw new Error(`Failed to read sprite image: ${error.message}`);
     }
 });
 
