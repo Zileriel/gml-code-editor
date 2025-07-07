@@ -22,8 +22,116 @@ function initializeProjectHandling() {
     window.api.receive('project-opened', (projectData) => {
         console.log('Project opened:', projectData);
         showNotification(`Project opened: ${projectData.path}`, 'success');
-        // TODO: Update UI with project files
+        renderAssetTree(projectData.assets);
     });
+}
+
+function renderAssetTree(assets) {
+    const scriptsRoot = document.querySelector('#scripts-root .tree-content');
+    const objectsRoot = document.querySelector('#objects-root .tree-content');
+    
+    // Clear existing content
+    scriptsRoot.innerHTML = '';
+    objectsRoot.innerHTML = '';
+
+    // Create folder structure for scripts
+    const scriptFolders = createFolderStructure(assets.scripts);
+    renderFolderStructure(scriptsRoot, scriptFolders, 'script');
+
+    // Create folder structure for objects
+    const objectFolders = createFolderStructure(assets.objects);
+    renderFolderStructure(objectsRoot, objectFolders, 'object');
+}
+
+function createFolderStructure(items) {
+    const root = { children: {}, items: [] };
+
+    for (const item of items) {
+        const pathParts = item.path.split('/');
+        let current = root;
+
+        // Create folder structure
+        for (const part of pathParts) {
+            if (!current.children[part]) {
+                current.children[part] = { children: {}, items: [] };
+            }
+            current = current.children[part];
+        }
+
+        // Add item to the final folder
+        current.items.push(item);
+    }
+
+    return root;
+}
+
+function renderFolderStructure(parentElement, folder, itemType, level = 0) {
+    // Render items in this folder
+    for (const item of folder.items) {
+        const itemElement = createTreeItem(item, itemType);
+        parentElement.appendChild(itemElement);
+    }
+
+    // Render subfolders
+    for (const [folderName, subFolder] of Object.entries(folder.children)) {
+        const folderElement = document.createElement('div');
+        folderElement.className = 'tree-folder';
+
+        // Create folder header
+        const headerElement = document.createElement('div');
+        headerElement.className = 'tree-item folder';
+        headerElement.innerHTML = `
+            <i class="bi bi-chevron-right"></i>
+            <i class="bi bi-folder"></i>
+            <span>${folderName}</span>
+        `;
+
+        // Create folder content
+        const contentElement = document.createElement('div');
+        contentElement.className = 'tree-content';
+        contentElement.style.display = 'none';
+
+        // Add click handler for folder
+        headerElement.addEventListener('click', () => {
+            headerElement.classList.toggle('expanded');
+            contentElement.style.display = headerElement.classList.contains('expanded') ? 'flex' : 'none';
+        });
+
+        folderElement.appendChild(headerElement);
+        folderElement.appendChild(contentElement);
+        parentElement.appendChild(folderElement);
+
+        // Render folder contents
+        renderFolderStructure(contentElement, subFolder, itemType, level + 1);
+    }
+}
+
+function createTreeItem(item, itemType) {
+    const element = document.createElement('div');
+    element.className = `tree-item ${itemType}`;
+    
+    const icon = itemType === 'script' ? 'bi-file-earmark-code' : 'bi-box';
+    element.innerHTML = `
+        <i class="bi ${icon}"></i>
+        <span>${item.name}</span>
+    `;
+
+    element.addEventListener('click', (e) => {
+        // Remove selection from other items
+        document.querySelectorAll('.tree-item.selected').forEach(item => {
+            if (item !== element) {
+                item.classList.remove('selected');
+            }
+        });
+
+        // Toggle selection on this item
+        element.classList.toggle('selected');
+
+        // Log the item details
+        console.log(`Selected ${itemType}:`, item);
+    });
+
+    return element;
 }
 
 function showNotification(message, type = 'info') {

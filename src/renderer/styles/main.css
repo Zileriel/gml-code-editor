@@ -154,3 +154,91 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: #4f4f4f;
 } 
+
+/* Asset Tree styles */
+#asset-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.tree-root {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.tree-header {
+    font-weight: 500;
+    color: #cccccc;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    border-bottom: 1px solid #3c3c3c;
+}
+
+.tree-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.tree-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 3px;
+    user-select: none;
+}
+
+.tree-item:hover {
+    background-color: #2a2d2e;
+}
+
+.tree-item.selected {
+    background-color: #37373d;
+}
+
+.tree-folder {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.tree-folder > .tree-item {
+    padding-left: 4px;
+}
+
+.tree-folder > .tree-content {
+    padding-left: 16px;
+}
+
+.tree-item i {
+    font-size: 14px;
+    width: 16px;
+    text-align: center;
+}
+
+.tree-item .bi-chevron-right {
+    transition: transform 0.2s;
+}
+
+.tree-item.expanded .bi-chevron-right {
+    transform: rotate(90deg);
+}
+
+/* Icons */
+.tree-item.script i {
+    color: #4ec9b0;
+}
+
+.tree-item.object i {
+    color: #569cd6;
+}
+
+.tree-item.folder i {
+    color: #c09553;
+} 
