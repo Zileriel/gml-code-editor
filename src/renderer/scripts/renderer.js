@@ -6,6 +6,25 @@ let selectedObject = null; // Currently selected object
 let gmFunctions = []; // Will be populated from XML
 let gmBuiltins = []; // Will be populated from XML
 let gmAtoms = []; // Will be populated from XML
+let featherEnabled = true; // Track linting state
+
+// Create sets for faster lookups - will be updated when XML is loaded
+let builtinSet = new Set();
+let atomSet = new Set();
+let functionSet = new Set();
+let keywordSet = new Set([
+    'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'default', 'break', 'continue',
+    'function', 'return', 'var', 'globalvar', 'enum', 'macro', 'with', 'exit', 'try', 'catch',
+    'finally', 'throw', 'delete', 'new', 'constructor', 'static', 'noone', 'global', 'local',
+    'and', 'or', 'xor', 'not', 'div', 'mod', 'repeat', 'until', 'with'
+]);
+
+// Function to update the lookup sets
+function updateLookupSets() {
+    builtinSet = new Set(gmBuiltins.map(b => b.text));
+    atomSet = new Set(gmAtoms.map(a => a.text));
+    functionSet = new Set(gmFunctions.map(f => f.displayText));
+}
 
 // Function to parse the functions XML and populate arrays
 async function loadGMLanguageSpec() {
@@ -104,11 +123,19 @@ async function loadGMLanguageSpec() {
             });
         }
 
+        // Update lookup sets after loading XML
+        updateLookupSets();
+
         console.log(`Successfully loaded GameMaker language spec:
             • ${gmFunctions.length} functions
             • ${gmBuiltins.length} variables
             • ${gmAtoms.length} constants`);
         showNotification(`Loaded GameMaker language specification`, 'success');
+
+        // Refresh editor if it exists
+        if (editor) {
+            editor.refresh();
+        }
     } catch (error) {
         console.error("Error loading GM language spec:", error);
         showNotification(`Failed to load GameMaker language spec: ${error.message}`, 'error');
@@ -116,6 +143,8 @@ async function loadGMLanguageSpec() {
         gmFunctions = [];
         gmBuiltins = [];
         gmAtoms = [];
+        // Update lookup sets with empty arrays
+        updateLookupSets();
     }
 }
 
@@ -128,7 +157,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Add GameMaker keywords
     const gmKeywords = [
-        'begin', 'end', 'exit', 'repeat', 'until', 'with'
+        'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'default', 'break', 'continue',
+        'function', 'return', 'var', 'globalvar', 'enum', 'macro', 'with', 'exit', 'try', 'catch',
+        'finally', 'throw', 'delete', 'new', 'constructor', 'static', 'noone', 'global', 'local',
+        'and', 'or', 'xor', 'not', 'div', 'mod', 'repeat', 'until', 'with'
     ];
 
     // Register custom hint function
@@ -216,12 +248,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     CodeMirror.defineMode("gamemaker", function(config) {
         const jsMode = CodeMirror.getMode(config, "javascript");
         
-        // Create sets for faster lookups
-        const builtinSet = new Set(gmBuiltins.map(b => b.text));
-        const atomSet = new Set(gmAtoms.map(a => a.text));
-        const functionSet = new Set(gmFunctions.map(f => f.displayText));
-        const keywordSet = new Set(gmKeywords);
-
         return {
             startState: function() {
                 return {
@@ -314,6 +340,501 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     });
 
+    // Advanced GameMaker Language (GML) Linter
+    CodeMirror.registerHelper("lint", "gamemaker", function(text, options, editor) {
+        const found = [];
+        const lines = text.split('\n');
+        
+        // Use the dynamically loaded sets (fallback to empty sets if not loaded)
+        const keywords = typeof keywordSet !== 'undefined' ? keywordSet : new Set();
+        const builtinFunctions = typeof functionSet !== 'undefined' ? functionSet : new Set();
+        const builtinAtoms = typeof atomSet !== 'undefined' ? atomSet : new Set();
+        const builtinConstants = typeof builtinSet !== 'undefined' ? builtinSet : new Set();
+        
+        // Common GML event constants
+        const eventConstants = new Set([
+            'ev_create', 'ev_destroy', 'ev_step', 'ev_alarm', 'ev_keyboard', 'ev_mouse',
+            'ev_collision', 'ev_other', 'ev_draw', 'ev_keypress', 'ev_keyrelease',
+            'ev_left_button', 'ev_right_button', 'ev_middle_button', 'ev_no_button',
+            'ev_left_press', 'ev_right_press', 'ev_middle_press', 'ev_left_release',
+            'ev_right_release', 'ev_middle_release', 'ev_mouse_enter', 'ev_mouse_leave',
+            'ev_mouse_wheel_up', 'ev_mouse_wheel_down', 'ev_global_left_button',
+            'ev_global_right_button', 'ev_global_middle_button', 'ev_global_left_press',
+            'ev_global_right_press', 'ev_global_middle_press', 'ev_global_left_release',
+            'ev_global_right_release', 'ev_global_middle_release', 'ev_joystick1_left',
+            'ev_joystick1_right', 'ev_joystick1_up', 'ev_joystick1_down', 'ev_joystick1_button1',
+            'ev_joystick1_button2', 'ev_joystick1_button3', 'ev_joystick1_button4',
+            'ev_joystick1_button5', 'ev_joystick1_button6', 'ev_joystick1_button7',
+            'ev_joystick1_button8', 'ev_joystick2_left', 'ev_joystick2_right', 'ev_joystick2_up',
+            'ev_joystick2_down', 'ev_joystick2_button1', 'ev_joystick2_button2',
+            'ev_joystick2_button3', 'ev_joystick2_button4', 'ev_joystick2_button5',
+            'ev_joystick2_button6', 'ev_joystick2_button7', 'ev_joystick2_button8',
+            'ev_outside', 'ev_boundary', 'ev_game_start', 'ev_game_end', 'ev_room_start',
+            'ev_room_end', 'ev_no_more_lives', 'ev_animation_end', 'ev_end_of_path',
+            'ev_no_more_health', 'ev_user0', 'ev_user1', 'ev_user2', 'ev_user3', 'ev_user4',
+            'ev_user5', 'ev_user6', 'ev_user7', 'ev_user8', 'ev_user9', 'ev_user10',
+            'ev_user11', 'ev_user12', 'ev_user13', 'ev_user14', 'ev_user15', 'ev_step_normal',
+            'ev_step_begin', 'ev_step_end', 'ev_gui', 'ev_gui_begin', 'ev_gui_end'
+        ]);
+
+        // Helper functions
+        function isStringContext(line, pos) {
+            let inString = false;
+            let stringChar = null;
+            for (let i = 0; i < pos && i < line.length; i++) {
+                if ((line[i] === '"' || line[i] === "'") && (i === 0 || line[i-1] !== '\\')) {
+                    if (!inString) {
+                        inString = true;
+                        stringChar = line[i];
+                    } else if (line[i] === stringChar) {
+                        inString = false;
+                    }
+                }
+            }
+            return inString;
+        }
+
+        function isCommentContext(line, pos) {
+            const commentStart = line.indexOf('//');
+            return commentStart !== -1 && pos >= commentStart;
+        }
+
+        function getWordAtPosition(line, pos) {
+            let start = pos;
+            let end = pos;
+            
+            // Find start of word
+            while (start > 0 && /[a-zA-Z0-9_]/.test(line[start - 1])) {
+                start--;
+            }
+            
+            // Find end of word
+            while (end < line.length && /[a-zA-Z0-9_]/.test(line[end])) {
+                end++;
+            }
+            
+            return {
+                word: line.substring(start, end),
+                start: start,
+                end: end
+            };
+        }
+
+        // Track variables and functions across the entire script
+        const declaredVariables = new Set();
+        const declaredFunctions = new Set();
+        const usedVariables = new Set();
+
+        // Global bracket/brace tracking for multi-line structures
+        let globalOpenBraces = 0;
+        let globalOpenParens = 0;
+        let globalOpenBrackets = 0;
+        let globalInString = false;
+        let globalStringChar = null;
+        let globalInBlockComment = false;
+
+        // Process each line
+        lines.forEach((line, lineIndex) => {
+            const trimmedLine = line.trim();
+            
+            // Skip empty lines and single-line comments
+            if (trimmedLine === '' || trimmedLine.startsWith('//')) {
+                return;
+            }
+
+            // Check for variable declarations
+            const varMatch = line.match(/\b(var|globalvar)\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*)/);
+            if (varMatch) {
+                const variables = varMatch[2].split(',').map(v => v.trim());
+                variables.forEach(v => declaredVariables.add(v));
+            }
+
+            // Check for function declarations
+            const funcMatch = line.match(/\bfunction\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/);
+            if (funcMatch) {
+                declaredFunctions.add(funcMatch[1]);
+            }
+
+            // Check for undefined variables (basic check)
+            const identifiers = line.match(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g);
+            if (identifiers) {
+                identifiers.forEach(id => {
+                    if (!keywords.has(id) && !builtinFunctions.has(id) && !builtinAtoms.has(id) && !builtinConstants.has(id) && !eventConstants.has(id)) {
+                        usedVariables.add(id);
+                    }
+                });
+            }
+
+            // 1. Check for empty assignments
+            if (/=\s*;/.test(line)) {
+                const match = line.match(/=/);
+                if (match) {
+                    found.push({
+                        from: CodeMirror.Pos(lineIndex, match.index),
+                        to: CodeMirror.Pos(lineIndex, line.indexOf(';') + 1),
+                        message: "Empty assignment - value is required",
+                        severity: "error"
+                    });
+                }
+            }
+
+            // 2. Check for missing semicolons (improved)
+            if (!/^\s*$/.test(line) && // not empty line
+                !/^\s*\/\//.test(line) && // not a comment
+                !/^\s*\/\*/.test(line) && // not a block comment
+                !/^\s*\*/.test(line) && // not inside block comment
+                !/^\s*\*\//.test(line) && // not end of block comment
+                !/;\s*$/.test(line) && // doesn't end with semicolon
+                !/^\s*\}/.test(line) && // not closing brace
+                !/\{\s*$/.test(line) && // doesn't end with opening brace
+                !/^\s*#/.test(line) && // not a preprocessor directive
+                !/^\s*(if|else|for|while|do|switch|case|default|with|repeat|function|enum|macro)\b/.test(line) && // not control structure
+                !/^\s*\w+:/.test(line)) { // not a label
+                found.push({
+                    from: CodeMirror.Pos(lineIndex, line.length),
+                    to: CodeMirror.Pos(lineIndex, line.length),
+                    message: "Missing semicolon",
+                    severity: "warning"
+                });
+            }
+
+            // 3. Check for incorrect assignment operators (FIXED)
+            const assignmentMatch = line.match(/\b(\w+)\s*(==|!=|<=|>=|<|>)\s*([^;]+);/);
+            if (assignmentMatch && !line.includes('if') && !line.includes('while') && !line.includes('for') && !line.includes('return')) {
+                // Additional check: make sure it's not part of a boolean expression
+                const beforeMatch = line.substring(0, assignmentMatch.index);
+                if (!beforeMatch.includes('(') && !beforeMatch.includes('return')) {
+                    found.push({
+                        from: CodeMirror.Pos(lineIndex, assignmentMatch.index + assignmentMatch[1].length),
+                        to: CodeMirror.Pos(lineIndex, assignmentMatch.index + assignmentMatch[1].length + assignmentMatch[2].length + 1),
+                        message: `Comparison operator '${assignmentMatch[2]}' used in assignment context. Did you mean '='?`,
+                        severity: "error"
+                    });
+                }
+            }
+
+            // 4. Check for assignment in conditions (FIXED)
+            const conditionAssignMatch = line.match(/\b(if|while)\s*\(\s*([^)]*[^=!<>]=(?!=)[^)]*)\s*\)/);
+            if (conditionAssignMatch) {
+                // Make sure it's actually an assignment (single =) and not a comparison (==, !=, <=, >=)
+                const conditionPart = conditionAssignMatch[2];
+                if (conditionPart.includes('=') && !conditionPart.includes('==') && !conditionPart.includes('!=') && !conditionPart.includes('<=') && !conditionPart.includes('>=')) {
+                    found.push({
+                        from: CodeMirror.Pos(lineIndex, conditionAssignMatch.index),
+                        to: CodeMirror.Pos(lineIndex, conditionAssignMatch.index + conditionAssignMatch[0].length),
+                        message: "Assignment in condition. Did you mean '==' for comparison?",
+                        severity: "warning"
+                    });
+                }
+            }
+
+            // 5. Check for deprecated GML syntax
+            if (line.includes('execute_string')) {
+                found.push({
+                    from: CodeMirror.Pos(lineIndex, line.indexOf('execute_string')),
+                    to: CodeMirror.Pos(lineIndex, line.indexOf('execute_string') + 'execute_string'.length),
+                    message: "execute_string is deprecated and unsafe. Use functions instead.",
+                    severity: "error"
+                });
+            }
+
+            // 6. Check for incorrect string concatenation
+            const stringConcatMatch = line.match(/["'][^"']*["']\s*\+\s*\d+/);
+            if (stringConcatMatch) {
+                found.push({
+                    from: CodeMirror.Pos(lineIndex, stringConcatMatch.index),
+                    to: CodeMirror.Pos(lineIndex, stringConcatMatch.index + stringConcatMatch[0].length),
+                    message: "String concatenation with number may not work as expected. Use string() function.",
+                    severity: "warning"
+                });
+            }
+
+            // 7. Check for magic numbers
+            const magicNumberMatch = line.match(/\b(\d{3,})\b/);
+            if (magicNumberMatch && !line.includes('//') && !isStringContext(line, magicNumberMatch.index)) {
+                const number = parseInt(magicNumberMatch[1]);
+                if (number > 255 && number !== 1000 && number !== 1024) { // Common exceptions
+                    found.push({
+                        from: CodeMirror.Pos(lineIndex, magicNumberMatch.index),
+                        to: CodeMirror.Pos(lineIndex, magicNumberMatch.index + magicNumberMatch[1].length),
+                        message: `Magic number '${magicNumberMatch[1]}' should be replaced with a named constant`,
+                        severity: "info"
+                    });
+                }
+            }
+
+            // 8. Check for potential infinite loops
+            if (line.includes('while (true)') || line.includes('while(true)') || line.includes('while (1)') || line.includes('while(1)')) {
+                found.push({
+                    from: CodeMirror.Pos(lineIndex, line.indexOf('while')),
+                    to: CodeMirror.Pos(lineIndex, line.indexOf(')') + 1),
+                    message: "Potential infinite loop detected. Ensure there's a break condition.",
+                    severity: "warning"
+                });
+            }
+
+            // 9. Check for inefficient collision checking
+            if (line.includes('collision_rectangle') || line.includes('collision_circle')) {
+                if (line.includes('all')) {
+                    found.push({
+                        from: CodeMirror.Pos(lineIndex, line.indexOf('all')),
+                        to: CodeMirror.Pos(lineIndex, line.indexOf('all') + 3),
+                        message: "Using 'all' in collision functions is inefficient. Use specific object types.",
+                        severity: "warning"
+                    });
+                }
+            }
+
+            // 10. Check for incorrect resource access
+            const resourceMatch = line.match(/\b(sprite|sound|background|room|object|script|font|timeline|path)(\d+)\b/);
+            if (resourceMatch) {
+                found.push({
+                    from: CodeMirror.Pos(lineIndex, resourceMatch.index),
+                    to: CodeMirror.Pos(lineIndex, resourceMatch.index + resourceMatch[0].length),
+                    message: `Direct resource index '${resourceMatch[0]}' is deprecated. Use resource names instead.`,
+                    severity: "warning"
+                });
+            }
+
+            // 11. Check for bracket and parenthesis matching (FIXED - with cross-line tracking)
+            let openParens = 0;
+            let openBrackets = 0;
+            let openBraces = 0;
+            let inString = false;
+            let stringChar = null;
+            let inComment = false;
+
+            // Update global state from previous lines
+            openParens = globalOpenParens;
+            openBrackets = globalOpenBrackets;
+            openBraces = globalOpenBraces;
+            inString = globalInString;
+            stringChar = globalStringChar;
+
+            for (let i = 0; i < line.length; i++) {
+                // Handle comment start
+                if (line[i] === '/' && i + 1 < line.length && line[i + 1] === '/') {
+                    inComment = true;
+                    break;
+                }
+
+                // Handle string boundaries
+                if ((line[i] === '"' || line[i] === "'") && (i === 0 || line[i-1] !== '\\')) {
+                    if (!inString) {
+                        inString = true;
+                        stringChar = line[i];
+                    } else if (line[i] === stringChar) {
+                        inString = false;
+                    }
+                    continue;
+                }
+
+                // Skip if in string or comment
+                if (inString || inComment) continue;
+
+                // Count brackets and parentheses
+                if (line[i] === '(') openParens++;
+                if (line[i] === ')') openParens--;
+                if (line[i] === '[') openBrackets++;
+                if (line[i] === ']') openBrackets--;
+                if (line[i] === '{') openBraces++;
+                if (line[i] === '}') openBraces--;
+                
+                // Check for immediate mismatches
+                if (openParens < 0 || openBrackets < 0 || openBraces < 0) {
+                    found.push({
+                        from: CodeMirror.Pos(lineIndex, i),
+                        to: CodeMirror.Pos(lineIndex, i + 1),
+                        message: `Unmatched closing ${line[i] === ')' ? 'parenthesis' : line[i] === ']' ? 'bracket' : 'brace'}`,
+                        severity: "error"
+                    });
+                    // Reset the negative count but keep other counts
+                    if (openParens < 0) openParens = 0;
+                    if (openBrackets < 0) openBrackets = 0;
+                    if (openBraces < 0) openBraces = 0;
+                }
+            }
+            
+            // Update global state for next lines
+            globalOpenParens = openParens;
+            globalOpenBrackets = openBrackets;
+            globalOpenBraces = openBraces;
+            globalInString = inString;
+            globalStringChar = stringChar;
+
+            // Only report unclosed brackets/parentheses if they're clearly within a single statement
+            // i.e., if the line ends with a semicolon or is the last line
+            if (line.includes(';') || lineIndex === lines.length - 1) {
+                if (openParens > 0) {
+                    found.push({
+                        from: CodeMirror.Pos(lineIndex, line.length),
+                        to: CodeMirror.Pos(lineIndex, line.length),
+                        message: "Unclosed parenthesis",
+                        severity: "error"
+                    });
+                }
+                if (openBrackets > 0) {
+                    found.push({
+                        from: CodeMirror.Pos(lineIndex, line.length),
+                        to: CodeMirror.Pos(lineIndex, line.length),
+                        message: "Unclosed bracket",
+                        severity: "error"
+                    });
+                }
+            }
+
+            // Check for unclosed strings
+            if (inString) {
+                found.push({
+                    from: CodeMirror.Pos(lineIndex, line.length),
+                    to: CodeMirror.Pos(lineIndex, line.length),
+                    message: "Unclosed string",
+                    severity: "error"
+                });
+            }
+
+            // 12. Check for incorrect function calls
+            const functionCallMatch = line.match(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g);
+            if (functionCallMatch) {
+                functionCallMatch.forEach(match => {
+                    const funcName = match.replace(/\s*\($/, '');
+                    if (!builtinFunctions.has(funcName) && !declaredFunctions.has(funcName) && !keywords.has(funcName)) {
+                        const index = line.indexOf(match);
+                        found.push({
+                            from: CodeMirror.Pos(lineIndex, index),
+                            to: CodeMirror.Pos(lineIndex, index + funcName.length),
+                            message: `Function '${funcName}' is not defined`,
+                            severity: "error"
+                        });
+                    }
+                });
+            }
+
+            // 13. Check for incorrect variable naming
+            const variableMatch = line.match(/\b(var|globalvar)\s+([a-zA-Z_][a-zA-Z0-9_]*)/g);
+            if (variableMatch) {
+                variableMatch.forEach(match => {
+                    const varName = match.replace(/\b(var|globalvar)\s+/, '');
+                    if (keywords.has(varName) || builtinFunctions.has(varName) || builtinAtoms.has(varName) || builtinConstants.has(varName)) {
+                        const index = line.indexOf(varName);
+                        found.push({
+                            from: CodeMirror.Pos(lineIndex, index),
+                            to: CodeMirror.Pos(lineIndex, index + varName.length),
+                            message: `Variable name '${varName}' conflicts with keyword or built-in function`,
+                            severity: "error"
+                        });
+                    }
+                    if (varName.length < 2) {
+                        const index = line.indexOf(varName);
+                        found.push({
+                            from: CodeMirror.Pos(lineIndex, index),
+                            to: CodeMirror.Pos(lineIndex, index + varName.length),
+                            message: "Variable name should be at least 2 characters long",
+                            severity: "info"
+                        });
+                    }
+                });
+            }
+
+            // 14. Check for performance issues
+            if (line.includes('instance_find(all,')) {
+                found.push({
+                    from: CodeMirror.Pos(lineIndex, line.indexOf('instance_find(all,')),
+                    to: CodeMirror.Pos(lineIndex, line.indexOf('instance_find(all,') + 'instance_find(all,'.length),
+                    message: "instance_find(all, ...) is very slow. Use specific object types.",
+                    severity: "warning"
+                });
+            }
+
+            // 15. Check for common GML mistakes
+            if (line.includes('alarm[0] = -1')) {
+                found.push({
+                    from: CodeMirror.Pos(lineIndex, line.indexOf('alarm[0] = -1')),
+                    to: CodeMirror.Pos(lineIndex, line.indexOf('alarm[0] = -1') + 'alarm[0] = -1'.length),
+                    message: "Setting alarm to -1 stops it. Use positive values to set alarm duration.",
+                    severity: "info"
+                });
+            }
+
+            // 16. Check for potential null reference issues
+            const nullRefMatch = line.match(/\b(\w+)\.(\w+)/);
+            if (nullRefMatch && !line.includes('if') && !line.includes('instance_exists')) {
+                found.push({
+                    from: CodeMirror.Pos(lineIndex, nullRefMatch.index),
+                    to: CodeMirror.Pos(lineIndex, nullRefMatch.index + nullRefMatch[0].length),
+                    message: "Potential null reference. Consider checking if instance exists first.",
+                    severity: "info"
+                });
+            }
+
+            // 17. Check for inefficient string operations
+            if (line.includes('string_length') && line.includes('for')) {
+                found.push({
+                    from: CodeMirror.Pos(lineIndex, line.indexOf('string_length')),
+                    to: CodeMirror.Pos(lineIndex, line.indexOf('string_length') + 'string_length'.length),
+                    message: "Calling string_length in a loop is inefficient. Store the length in a variable.",
+                    severity: "warning"
+                });
+            }
+
+            // 18. Check for incorrect event usage
+            const eventMatch = line.match(/\bevent_perform\s*\(\s*(\w+)\s*,\s*(\w+)\s*\)/);
+            if (eventMatch) {
+                const eventType = eventMatch[1];
+                const eventNumber = eventMatch[2];
+                if (!eventConstants.has(eventType) && isNaN(parseInt(eventType))) {
+                    found.push({
+                        from: CodeMirror.Pos(lineIndex, eventMatch.index),
+                        to: CodeMirror.Pos(lineIndex, eventMatch.index + eventMatch[0].length),
+                        message: `Unknown event type '${eventType}'. Use event constants like ev_step, ev_create, etc.`,
+                        severity: "warning"
+                    });
+                }
+            }
+        });
+
+        return found;
+    });
+
+    // Add custom CSS for linting
+    const lintingCSS = `
+        .CodeMirror-lint-tooltip {
+            background-color: #252526;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            color: #d4d4d4;
+            font-family: inherit;
+            font-size: 12px;
+            padding: 4px 8px;
+        }
+
+        .CodeMirror-lint-message-error {
+            color: #f44747;
+        }
+
+        .CodeMirror-lint-message-warning {
+            color: #ff8800;
+        }
+
+        .CodeMirror-lint-marker-error {
+            color: #f44747;
+        }
+
+        .CodeMirror-lint-marker-warning {
+            color: #ff8800;
+        }
+
+        .CodeMirror-lint-marker {
+            width: 16px;
+            height: 16px;
+        }
+    `;
+
+    // Add the linting CSS
+    const lintStyle = document.createElement('style');
+    lintStyle.textContent = lintingCSS;
+    document.head.appendChild(lintStyle);
+
     // Update CSS classes for syntax highlighting
     const customCSS = `
         .cm-s-ambiance .cm-builtin { color: #58E55A !important; }
@@ -327,11 +848,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     style.textContent = customCSS;
     document.head.appendChild(style);
     
-    // Initialize CodeMirror with our custom mode
+    // Initialize CodeMirror with linting enabled
     editor = CodeMirror.fromTextArea(document.getElementById('code-editor'), {
         mode: 'gamemaker',
         theme: 'ambiance',
         lineNumbers: true,
+        
+        // Linting options
+        lint: featherEnabled,
+        gutters: featherEnabled ? 
+            ["CodeMirror-lint-markers", "CodeMirror-linenumbers", "CodeMirror-foldgutter"] :
+            ["CodeMirror-linenumbers", "CodeMirror-foldgutter"],
         
         // Auto brackets and matching
         autoCloseBrackets: true,
@@ -339,7 +866,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // Code folding
         foldGutter: true,
-        gutters: ["CodeMirror-linenumbers", "CodeMirror-foldgutter"],
         foldOptions: {
             widget: '...',
             minFoldSize: 2
@@ -395,6 +921,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         }
+    });
+
+    // Enable real-time linting
+    editor.on("change", function(cm, change) {
+        // Force lint refresh after each change
+        cm.performLint();
     });
 
     // Enable automatic autocompletion as you type
@@ -959,4 +1491,30 @@ window.api.send('toMain', 'Hello from renderer!');
 // Example of receiving messages from main process
 window.api.receive('fromMain', (data) => {
     console.log('Received from main process:', data);
+});
+
+// Handle feather toggle
+window.api.receive('toggle-feather', () => {
+    featherEnabled = !featherEnabled;
+    
+    // Update editor options
+    editor.setOption('lint', featherEnabled);
+    
+    // Update gutters
+    const gutters = ["CodeMirror-linenumbers", "CodeMirror-foldgutter"];
+    if (featherEnabled) {
+        gutters.unshift("CodeMirror-lint-markers");
+    }
+    editor.setOption('gutters', gutters);
+    
+    // Clear lint markers if disabling
+    if (!featherEnabled) {
+        editor.clearGutter("CodeMirror-lint-markers");
+    } else {
+        // Force a lint refresh if enabling
+        editor.performLint();
+    }
+    
+    // Show notification
+    showNotification(`Feather ${featherEnabled ? 'enabled' : 'disabled'}`, 'info');
 }); 

@@ -63,10 +63,13 @@ function createMenu() {
         {
             label: 'View',
             submenu: [
-                { role: 'reload' },
-                { role: 'forceReload' },
-                { type: 'separator' },
-                { role: 'toggleDevTools' },
+                {
+                    label: 'Toggle Feather',
+                    accelerator: 'CmdOrCtrl+Shift+L',
+                    click: () => {
+                        mainWindow.webContents.send('toggle-feather');
+                    }
+                },
                 { type: 'separator' },
                 { role: 'resetZoom' },
                 { role: 'zoomIn' },

@@ -12,7 +12,7 @@ contextBridge.exposeInMainWorld(
             }
         },
         receive: (channel, func) => {
-            let validChannels = ['fromMain', 'project-error', 'project-opened'];
+            let validChannels = ['fromMain', 'project-error', 'project-opened', 'toggle-feather'];
             if (validChannels.includes(channel)) {
                 // Deliberately strip event as it includes `sender` 
                 ipcRenderer.on(channel, (event, ...args) => func(...args));
