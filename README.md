@@ -1,48 +1,20 @@
-# GM Lite
+TODO:
+- implement middle click navigation to macro, enum, function declaration
+- implement search & replace
+- implement right-click context menus in the explorer to manage assets (create / delete)
 
-An Electron-based desktop application.
+FIX: 
+- onClick: function() {
+			other.toggle();
+		},
+( variable onClick is used but not declared )
 
-## Project Structure
+- var x1 = instance.sprite_index == -1 ? instance.x - (box_size / 2) : instance.bbox_left;
+(Comparison operator '==' used in assignment context. Did you mean '='?)
 
-```
-src/
-├── main/           # Main process files
-│   ├── main.js     # Main entry point
-│   └── preload.js  # Preload script for IPC
-├── renderer/       # Renderer process files
-│   ├── index.html  # Main HTML file
-│   ├── scripts/    # Renderer JavaScript files
-│   └── styles/     # CSS files
-```
+- draw_syntax_highlighted_text = function(input_text, x_pos, y_pos) {
+( variable input_text is used but not defined)
+( variable x_pos is used but not defined )
+( variable y_pos is used but not defined )
 
-## Development
-
-### Prerequisites
-
-- Node.js (v14 or higher)
-- npm (v6 or higher)
-
-### Setup
-
-1. Install dependencies:
-```bash
-npm install
-```
-
-2. Start the application in development mode:
-```bash
-npm run dev
-```
-
-### Build
-
-To build the application:
-```bash
-npm run build
-```
-
-## Features
-
-- Secure IPC communication between main and renderer processes
-- Modern UI with clean styling
-- Development mode with DevTools enabled 
+- issues with local scope
