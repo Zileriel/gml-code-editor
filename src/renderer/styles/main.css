@@ -344,3 +344,38 @@ body {
 .CodeMirror-cursor {
     border-left-color: #ffffff !important;
 } 
+
+/* Tree item text truncation */
+.tree-item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+/* Event item text truncation */
+.event-item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+/* Property item text truncation */
+.property-item label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+/* Make sure items with icons have proper spacing */
+.tree-item, .event-item {
+    min-width: 0; /* Enable flex text truncation */
+}
+
+/* Ensure the panel content doesn't overflow horizontally */
+.panel-content {
+    overflow-x: hidden;
+    overflow-y: auto;
+} 
