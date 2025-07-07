@@ -243,6 +243,37 @@ body {
     color: #dcb67a;
 } 
 
+/* Events List styles */
+.events-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.event-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    cursor: pointer;
+    border-radius: 3px;
+    user-select: none;
+    color: #cccccc;
+}
+
+.event-item:hover {
+    background-color: #2a2d2e;
+}
+
+.event-item.selected {
+    background-color: #37373d;
+    color: #ffffff;
+}
+
+.event-item i {
+    color: #569cd6;
+}
+
 /* CodeMirror styles */
 .panel-content {
     display: flex;

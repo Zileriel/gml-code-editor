@@ -2,6 +2,7 @@
 // You can safely use the exposed 'api' object here
 
 let editor; // CodeMirror instance
+let selectedObject = null; // Currently selected object
 
 // Example of sending a message to the main process
 document.addEventListener('DOMContentLoaded', () => {
@@ -210,15 +211,36 @@ function createTreeItem(item, itemType) {
         // Toggle selection on this item
         element.classList.toggle('selected');
 
-        // If this is a script, load its content into the editor
-        if (itemType === 'script' && element.classList.contains('selected')) {
-            try {
-                const content = await window.api.invoke('read-script-content', item.gmlFile);
-                editor.setValue(content || '');
+        if (element.classList.contains('selected')) {
+            if (itemType === 'script') {
+                // Clear the inspector
+                clearInspector();
+                
+                // Load script content into editor
+                try {
+                    const content = await window.api.invoke('read-script-content', item.gmlFile);
+                    editor.setValue(content || '');
+                    editor.refresh();
+                } catch (error) {
+                    showNotification(`Failed to load script: ${error.message}`, 'error');
+                }
+            } else if (itemType === 'object') {
+                // Store selected object
+                selectedObject = item;
+                
+                // Display object events in inspector
+                displayObjectEvents(item);
+                
+                // Clear the editor
+                editor.setValue('');
                 editor.refresh();
-            } catch (error) {
-                showNotification(`Failed to load script: ${error.message}`, 'error');
             }
+        } else {
+            // If deselected, clear everything
+            selectedObject = null;
+            clearInspector();
+            editor.setValue('');
+            editor.refresh();
         }
 
         // Log the item details
@@ -226,6 +248,65 @@ function createTreeItem(item, itemType) {
     });
 
     return element;
+}
+
+function clearInspector() {
+    const inspectorContent = document.querySelector('#inspector .panel-content');
+    inspectorContent.innerHTML = '';
+}
+
+function displayObjectEvents(object) {
+    const inspectorContent = document.querySelector('#inspector .panel-content');
+    clearInspector();
+
+    // Create events list
+    const eventsList = document.createElement('div');
+    eventsList.className = 'events-list';
+
+    // Add each event
+    object.events.forEach(event => {
+        const eventItem = document.createElement('div');
+        eventItem.className = 'event-item';
+        
+        // Format event name for display
+        const displayName = event.name
+            .replace(/_event/g, '') // Remove _event
+            .split('_')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+
+        eventItem.innerHTML = `
+            <i class="bi bi-code-square"></i>
+            <span>${displayName}</span>
+        `;
+
+        eventItem.addEventListener('click', async () => {
+            // Remove selection from other events
+            document.querySelectorAll('.event-item.selected').forEach(item => {
+                if (item !== eventItem) {
+                    item.classList.remove('selected');
+                }
+            });
+
+            // Toggle selection on this event
+            eventItem.classList.toggle('selected');
+
+            if (eventItem.classList.contains('selected')) {
+                // Load event code into editor
+                try {
+                    const content = await window.api.invoke('read-script-content', event.file);
+                    editor.setValue(content || '');
+                    editor.refresh();
+                } catch (error) {
+                    showNotification(`Failed to load event code: ${error.message}`, 'error');
+                }
+            }
+        });
+
+        eventsList.appendChild(eventItem);
+    });
+
+    inspectorContent.appendChild(eventsList);
 }
 
 function showNotification(message, type = 'info') {
