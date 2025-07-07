@@ -4,6 +4,7 @@ const fs = require('fs').promises;
 
 let mainWindow;
 
+// Initialize main application window with security settings
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1200,
@@ -15,17 +16,12 @@ function createWindow() {
         }
     });
 
-    // Load the index.html file
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
-
-    // Open DevTools in development mode
-    
     mainWindow.webContents.openDevTools();
-    
-
     createMenu();
 }
 
+// Create application menu with file operations and view controls
 function createMenu() {
     const template = [
         {
@@ -91,9 +87,9 @@ function createMenu() {
     Menu.setApplicationMenu(menu);
 }
 
+// Validate and load GameMaker project directory
 async function validateAndOpenProject(projectPath) {
     try {
-        // Check if directory contains .yyp file
         const files = await fs.readdir(projectPath);
         const hasYypFile = files.some(file => file.endsWith('.yyp'));
 
@@ -102,10 +98,7 @@ async function validateAndOpenProject(projectPath) {
             return;
         }
 
-        // Scan for scripts and objects
         const assets = await scanProjectAssets(projectPath);
-
-        // Send the project data to renderer
         mainWindow.webContents.send('project-opened', {
             path: projectPath,
             assets: assets
@@ -116,26 +109,22 @@ async function validateAndOpenProject(projectPath) {
     }
 }
 
-// Helper function to process folder path
+// Extract folder path from GameMaker project structure
 function processFolderPath(path) {
-    // Skip paths that don't represent folders (e.g. .yyp files)
     if (!path.includes('folders/') || path.endsWith('.yyp')) {
         return '';
     }
-    // Remove 'folders/' prefix and '.yy' extension
     return path.replace(/^folders\//, '').replace(/\.yy$/, '');
 }
 
-// Helper function to compare items for sorting
+// Sort items by numeric prefix if present, then alphabetically
 function compareItems(a, b) {
     const aName = a.name || '';
     const bName = b.name || '';
     
-    // Extract numbers from the start of names if they exist
     const aMatch = aName.match(/^(\d+)/);
     const bMatch = bName.match(/^(\d+)/);
     
-    // If both items start with numbers, compare numerically
     if (aMatch && bMatch) {
         const aNum = parseInt(aMatch[1], 10);
         const bNum = parseInt(bMatch[1], 10);
@@ -143,46 +132,30 @@ function compareItems(a, b) {
             return aNum - bNum;
         }
     }
-    // If only one starts with a number, put it first
     else if (aMatch) return -1;
     else if (bMatch) return 1;
     
-    // Otherwise compare alphabetically
     return aName.localeCompare(bName);
 }
 
+// Scan project directory for scripts and objects
 async function scanProjectAssets(projectPath) {
     const assets = {
         scripts: [],
         objects: []
     };
 
-    // Helper function to read .yy file
+    // Parse GameMaker YY file format
     async function readYyFile(filePath) {
         try {
             const content = await fs.readFile(filePath, 'utf8');
-            
-            // Remove trailing commas
             const noTrailingCommas = content.replace(/,(\s*[}\]])/g, '$1');
-            
-            // Quote all property names that aren't already quoted
             const quotedContent = noTrailingCommas.replace(/([\{\,]\s*)([%$\w]+)(\s*:)/g, '$1"$2"$3');
-            
             return JSON.parse(quotedContent);
         } catch (error) {
             console.error(`Error reading .yy file ${filePath}:`, error);
             return null;
         }
-    }
-
-    // Helper function to process folder path
-    function processFolderPath(path) {
-        // Skip paths that don't represent folders (e.g. .yyp files)
-        if (!path.includes('folders/') || path.endsWith('.yyp')) {
-            return '';
-        }
-        // Remove 'folders/' prefix and '.yy' extension
-        return path.replace(/^folders\//, '').replace(/\.yy$/, '');
     }
 
     // Scan scripts directory

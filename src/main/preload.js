@@ -1,11 +1,10 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Expose protected methods that allow the renderer process to use
-// the ipcRenderer without exposing the entire object
+// Secure bridge between renderer and main processes
+// Only exposes whitelisted IPC channels and methods
 contextBridge.exposeInMainWorld(
     'api', {
         send: (channel, data) => {
-            // whitelist channels
             let validChannels = ['toMain'];
             if (validChannels.includes(channel)) {
                 ipcRenderer.send(channel, data);
@@ -14,7 +13,6 @@ contextBridge.exposeInMainWorld(
         receive: (channel, func) => {
             let validChannels = ['fromMain', 'project-error', 'project-opened', 'toggle-feather', 'save-project'];
             if (validChannels.includes(channel)) {
-                // Deliberately strip event as it includes `sender` 
                 ipcRenderer.on(channel, (event, ...args) => func(...args));
             }
         },

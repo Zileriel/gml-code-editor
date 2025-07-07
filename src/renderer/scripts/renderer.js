@@ -1,43 +1,41 @@
-// This file contains the renderer process code
-// You can safely use the exposed 'api' object here
+// GameMaker Lite - Renderer Process
+// Handles UI, code editing, and project management
 
-let editor; // CodeMirror instance
-let selectedObject = null; // Currently selected object
-let gmFunctions = []; // Will be populated from XML
-let gmBuiltins = []; // Will be populated from XML
-let gmAtoms = []; // Will be populated from XML
-let featherEnabled = true; // Track linting state
+// Core editor state
+let editor;                  // CodeMirror instance
+let selectedObject = null;   // Currently selected object
+let featherEnabled = true;   // Code linting state
+let modifiedFiles = new Set(); // Track unsaved changes
 
-// Create sets for faster lookups - will be updated when XML is loaded
+// Language specification data
+let gmFunctions = [];  // Functions from XML
+let gmBuiltins = [];   // Built-in variables
+let gmAtoms = [];      // Constants
 let builtinSet = new Set();
 let atomSet = new Set();
 let functionSet = new Set();
-let keywordSet = new Set([
+
+// GameMaker language keywords
+const keywordSet = new Set([
     'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'default', 'break', 'continue',
     'function', 'return', 'var', 'globalvar', 'enum', 'macro', 'with', 'exit', 'try', 'catch',
     'finally', 'throw', 'delete', 'new', 'constructor', 'static', 'noone', 'global', 'local',
     'and', 'or', 'xor', 'not', 'div', 'mod', 'repeat', 'until', 'with'
 ]);
 
-// Track modified files
-let modifiedFiles = new Set();
-
-// Function to mark a file as modified
+// File Management Functions
 function markFileModified(filePath) {
     modifiedFiles.add(filePath);
 }
 
-// Function to save all modified files
 async function saveProject() {
     const promises = [];
     
     for (const filePath of modifiedFiles) {
-        // Get the content from the editor if it's the currently open file
         let content;
         if (editor && editor.filePath === filePath) {
             content = editor.getValue();
         } else {
-            // For object event files that were modified but not currently open
             const objectEvent = selectedObject?.events?.find(e => e.gmlFile === filePath);
             if (objectEvent) {
                 content = objectEvent.content;
@@ -62,7 +60,6 @@ async function saveProject() {
 
     const results = await Promise.all(promises);
     
-    // Show notification with results
     const failed = results.filter(r => !r.success);
     if (failed.length === 0) {
         if (results.length > 0) {
@@ -79,27 +76,25 @@ async function saveProject() {
 // Listen for save project command
 window.api.receive('save-project', saveProject);
 
-// Function to update the lookup sets
+// Language Specification Functions
 function updateLookupSets() {
     builtinSet = new Set(gmBuiltins.map(b => b.text));
     atomSet = new Set(gmAtoms.map(a => a.text));
     functionSet = new Set(gmFunctions.map(f => f.displayText));
 }
 
-// Function to parse the functions XML and populate arrays
+// Load and parse GameMaker language specification from XML
 async function loadGMLanguageSpec() {
     try {
         const xmlContent = await window.api.invoke('read-functions-xml');
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
         
-        // Check for XML parsing errors
-        const parserError = xmlDoc.querySelector('parsererror');
-        if (parserError) {
+        if (xmlDoc.querySelector('parsererror')) {
             throw new Error('Failed to parse functions.xml: Invalid XML format');
         }
 
-        // Load functions
+        // Parse functions with parameters and descriptions
         const functions = xmlDoc.getElementsByTagName("Function");
         if (!functions || functions.length === 0) {
             throw new Error('No functions found in functions.xml');
@@ -108,43 +103,24 @@ async function loadGMLanguageSpec() {
         gmFunctions = Array.from(functions).map(func => {
             const name = func.getAttribute("Name");
             const description = func.getElementsByTagName("Description")[0]?.textContent?.trim() || '';
-            const parameters = Array.from(func.getElementsByTagName("Parameter")).map(param => {
-                const paramName = param.getAttribute("Name");
-                const paramType = param.getAttribute("Type");
-                const isOptional = param.getAttribute("Optional") === "true";
-                const paramDesc = param.textContent?.trim() || '';
-                return {
-                    name: paramName,
-                    type: paramType,
-                    optional: isOptional,
-                    description: paramDesc
-                };
-            });
+            const parameters = Array.from(func.getElementsByTagName("Parameter")).map(param => ({
+                name: param.getAttribute("Name"),
+                type: param.getAttribute("Type"),
+                optional: param.getAttribute("Optional") === "true",
+                description: param.textContent?.trim() || ''
+            }));
 
-            // Create the function signature
-            let signature = name + "(";
-            signature += parameters.map(p => {
-                let paramText = p.name;
-                if (p.optional) {
-                    paramText = `[${paramText}]`;
-                }
-                return paramText;
-            }).join(", ");
-            signature += ")";
+            const signature = name + "(" + parameters.map(p => 
+                p.optional ? `[${p.name}]` : p.name
+            ).join(", ") + ")";
 
-            // Create the full hint text including parameters
-            let hintText = description + "\n\nParameters:";
-            if (parameters.length > 0) {
-                hintText += "\n" + parameters.map(p => {
+            const hintText = description + "\n\nParameters:" + (parameters.length > 0 
+                ? "\n" + parameters.map(p => {
                     let paramText = `${p.name} (${p.type})`;
-                    if (p.optional) {
-                        paramText = `[${paramText}]`;
-                    }
+                    if (p.optional) paramText = `[${paramText}]`;
                     return `• ${paramText}: ${p.description}`;
-                }).join("\n");
-            } else {
-                hintText += "\nNone";
-            }
+                }).join("\n")
+                : "\nNone");
 
             return {
                 text: signature,
@@ -153,77 +129,50 @@ async function loadGMLanguageSpec() {
             };
         });
 
-        // Load variables
+        // Parse built-in variables
         const variables = xmlDoc.getElementsByTagName("Variable");
         if (variables && variables.length > 0) {
-            gmBuiltins = Array.from(variables).map(variable => {
-                const name = variable.getAttribute("Name");
-                const description = variable.getElementsByTagName("Description")[0]?.textContent?.trim() || '';
-                const type = variable.getAttribute("Type") || '';
-                return {
-                    text: name,
-                    displayText: name,
-                    hint: `${description}\nType: ${type}`
-                };
-            });
+            gmBuiltins = Array.from(variables).map(variable => ({
+                text: variable.getAttribute("Name"),
+                displayText: variable.getAttribute("Name"),
+                hint: `${variable.getElementsByTagName("Description")[0]?.textContent?.trim() || ''}\nType: ${variable.getAttribute("Type") || ''}`
+            }));
         }
 
-        // Load constants
+        // Parse constants
         const constants = xmlDoc.getElementsByTagName("Constant");
         if (constants && constants.length > 0) {
-            gmAtoms = Array.from(constants).map(constant => {
-                const name = constant.getAttribute("Name");
-                const description = constant.getElementsByTagName("Description")[0]?.textContent?.trim() || '';
-                const value = constant.getAttribute("Value") || '';
-                return {
-                    text: name,
-                    displayText: name,
-                    hint: `${description}\nValue: ${value}`
-                };
-            });
+            gmAtoms = Array.from(constants).map(constant => ({
+                text: constant.getAttribute("Name"),
+                displayText: constant.getAttribute("Name"),
+                hint: `${constant.getElementsByTagName("Description")[0]?.textContent?.trim() || ''}\nValue: ${constant.getAttribute("Value") || ''}`
+            }));
         }
 
-        // Update lookup sets after loading XML
         updateLookupSets();
-
         console.log(`Successfully loaded GameMaker language spec:
             • ${gmFunctions.length} functions
             • ${gmBuiltins.length} variables
             • ${gmAtoms.length} constants`);
         showNotification(`Loaded GameMaker language specification`, 'success');
 
-        // Refresh editor if it exists
-        if (editor) {
-            editor.refresh();
-        }
+        if (editor) editor.refresh();
     } catch (error) {
         console.error("Error loading GM language spec:", error);
         showNotification(`Failed to load GameMaker language spec: ${error.message}`, 'error');
-        // Initialize with empty arrays to prevent errors
         gmFunctions = [];
         gmBuiltins = [];
         gmAtoms = [];
-        // Update lookup sets with empty arrays
         updateLookupSets();
     }
 }
 
-// Example of sending a message to the main process
+// Initialize editor and load language spec
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Renderer process started');
-    
-    // Load GM language spec from XML
     await loadGMLanguageSpec();
     
-    // Add GameMaker keywords
-    const gmKeywords = [
-        'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'default', 'break', 'continue',
-        'function', 'return', 'var', 'globalvar', 'enum', 'macro', 'with', 'exit', 'try', 'catch',
-        'finally', 'throw', 'delete', 'new', 'constructor', 'static', 'noone', 'global', 'local',
-        'and', 'or', 'xor', 'not', 'div', 'mod', 'repeat', 'until', 'with'
-    ];
-
-    // Register custom hint function
+    // Register custom hint function for code completion
     CodeMirror.registerHelper("hint", "gamemaker", function(editor, options) {
         const cursor = editor.getCursor();
         const token = editor.getTokenAt(cursor);
@@ -515,7 +464,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 declaredFunctions.add(funcMatch[1]);
             }
 
-            // Check for undefined variables (improved check)
+            // Check for undefined variables
             const identifiers = line.match(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g);
             if (identifiers) {
                 identifiers.forEach(id => {
@@ -557,7 +506,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
 
-            // 1. Check for empty assignments (improved)
+            // 1. Check for empty assignments
             const emptyAssignMatch = line.match(/\b[a-zA-Z_][a-zA-Z0-9_]*\s*=\s*$/);
             if (emptyAssignMatch || /=\s*;/.test(line)) {
                 const match = line.match(/=/);
@@ -571,7 +520,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
-            // 2. Check for missing semicolons (severity changed to info)
+            // 2. Check for missing semicolons
             if (!/^\s*$/.test(line) && // not empty line
                 !/^\s*\/\//.test(line) && // not a comment
                 !/^\s*\/\*/.test(line) && // not a block comment
@@ -591,7 +540,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
 
-            // 3. Check for incorrect assignment operators (FIXED)
+            // 3. Check for incorrect assignment operators
             const assignmentMatch = line.match(/\b(\w+)\s*(==|!=|<=|>=|<|>)\s*([^;]+);/);
             if (assignmentMatch && !line.includes('if') && !line.includes('while') && !line.includes('for') && !line.includes('return')) {
                 // Additional check: make sure it's not part of a boolean expression
@@ -606,7 +555,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
-            // 4. Check for assignment in conditions (severity changed to info)
+            // 4. Check for assignment in conditions
             const conditionAssignMatch = line.match(/\b(if|while)\s*\(\s*([^)]*[^=!<>]=(?!=)[^)]*)\s*\)/);
             if (conditionAssignMatch) {
                 // Make sure it's actually an assignment (single =) and not a comparison (==, !=, <=, >=)
@@ -621,7 +570,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
-            // 6. Check for incorrect string concatenation
+            // 5. Check for incorrect string concatenation
             const stringConcatMatch = line.match(/["'][^"']*["']\s*\+\s*\d+/);
             if (stringConcatMatch) {
                 found.push({
@@ -632,7 +581,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
 
-            // 7. Check for magic numbers (improved)
+            // 6. Check for magic numbers
             const magicNumberMatch = line.match(/\b(\d{3,})\b/);
             if (magicNumberMatch && !line.includes('//') && !isStringContext(line, magicNumberMatch.index)) {
                 const number = parseInt(magicNumberMatch[1]);
@@ -648,7 +597,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
-            // 8. Check for potential infinite loops
+            // 7. Check for potential infinite loops
             if (line.includes('while (true)') || line.includes('while(true)') || line.includes('while (1)') || line.includes('while(1)')) {
                 found.push({
                     from: CodeMirror.Pos(lineIndex, line.indexOf('while')),
@@ -658,7 +607,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
 
-            // 10. Check for incorrect resource access
+            // 8. Check for incorrect resource access
             const resourceMatch = line.match(/\b(sprite|sound|background|room|object|script|font|timeline|path)(\d+)\b/);
             if (resourceMatch) {
                 found.push({
@@ -669,7 +618,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
 
-            // 11. Check for bracket and parenthesis matching (FIXED - with cross-line tracking)
+            // 9. Check for bracket and parenthesis matching
             let openParens = 0;
             let openBrackets = 0;
             let openBraces = 0;
@@ -766,7 +715,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
 
-            // 12. Check for incorrect function calls
+            // 10. Check for incorrect function calls
             const functionCallMatch = line.match(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g);
             if (functionCallMatch) {
                 functionCallMatch.forEach(match => {
@@ -783,7 +732,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
 
-            // 13. Check for incorrect variable naming
+            // 11. Check for incorrect variable naming
             const variableMatch = line.match(/\b(var|globalvar)\s+([a-zA-Z_][a-zA-Z0-9_]*)/g);
             if (variableMatch) {
                 variableMatch.forEach(match => {
@@ -809,7 +758,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
 
-            // 15. Check for common GML mistakes
+            // 13. Check for common GML mistakes
             if (line.includes('alarm[0] = -1')) {
                 found.push({
                     from: CodeMirror.Pos(lineIndex, line.indexOf('alarm[0] = -1')),
@@ -819,7 +768,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
 
-            // 16. Check for potential null reference issues
+            // 14. Check for potential null reference issues
             const nullRefMatch = line.match(/\b(\w+)\.(\w+)/);
             if (nullRefMatch && !line.includes('if') && !line.includes('instance_exists')) {
                 found.push({
@@ -830,7 +779,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
 
-            // 18. Check for incorrect event usage
+            // 16. Check for incorrect event usage
             const eventMatch = line.match(/\bevent_perform\s*\(\s*(\w+)\s*,\s*(\w+)\s*\)/);
             if (eventMatch) {
                 const eventType = eventMatch[1];
