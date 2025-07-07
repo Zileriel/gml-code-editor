@@ -8,9 +8,89 @@ let selectedObject = null; // Currently selected object
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Renderer process started');
     
-    // Initialize CodeMirror
+    // Add GameMaker built-in variables to JavaScript mode
+    const gmBuiltins = [
+        // Instance variables
+        'x', 'y', 'xprevious', 'yprevious', 'xstart', 'ystart',
+        'hspeed', 'vspeed', 'direction', 'speed', 'friction',
+        'gravity', 'gravity_direction', 'solid', 'persistent',
+        'depth', 'visible', 'sprite_index', 'image_index',
+        'image_speed', 'image_alpha', 'image_angle', 'image_blend',
+        'image_xscale', 'image_yscale', 'mask_index', 'bbox_left',
+        'bbox_right', 'bbox_top', 'bbox_bottom', 'alarm',
+        
+        // Room and game variables
+        'room', 'room_speed', 'fps', 'fps_real', 'current_time',
+        'current_year', 'current_month', 'current_day', 'current_weekday',
+        'current_hour', 'current_minute', 'current_second',
+        
+        // Input variables
+        'mouse_x', 'mouse_y', 'mouse_button', 'mouse_lastbutton',
+        'keyboard_key', 'keyboard_lastkey', 'keyboard_string',
+        
+        // System variables
+        'game_id', 'working_directory', 'temp_directory',
+        'program_directory', 'delta_time', 'instance_count',
+        'instance_id', 'object_index',
+        
+        // Common game variables
+        'score', 'lives', 'health',
+        
+        // Timeline variables
+        'timeline_index', 'timeline_position', 'timeline_speed',
+        
+        // Path variables
+        'path_index', 'path_position', 'path_speed',
+        'path_orientation', 'path_endaction',
+    ];
+
+    // Define a custom mode that extends JavaScript
+    CodeMirror.defineMode("gamemaker", function(config) {
+        const jsMode = CodeMirror.getMode(config, "javascript");
+        
+        return {
+            startState: function() {
+                return {
+                    jsState: CodeMirror.startState(jsMode),
+                    inString: false
+                };
+            },
+            token: function(stream, state) {
+                // Check for GameMaker built-ins
+                if (!state.inString) {
+                    const ch = stream.peek();
+                    if (/[a-zA-Z_]/.test(ch)) {
+                        const word = stream.match(/[a-zA-Z_]\w*/)[0];
+                        if (gmBuiltins.includes(word)) {
+                            return 'builtin';
+                        }
+                        // Let JavaScript mode handle other cases
+                        stream.backUp(word.length);
+                    }
+                }
+                
+                // Handle strings to avoid matching built-ins inside them
+                if (stream.peek() === '"' || stream.peek() === "'") {
+                    state.inString = !state.inString;
+                }
+                
+                return jsMode.token(stream, state.jsState);
+            },
+            indent: function(state, textAfter) {
+                return jsMode.indent(state.jsState, textAfter);
+            },
+            electricInput: jsMode.electricInput,
+            lineComment: jsMode.lineComment,
+            blockCommentStart: jsMode.blockCommentStart,
+            blockCommentEnd: jsMode.blockCommentEnd,
+            fold: jsMode.fold,
+            closeBrackets: jsMode.closeBrackets
+        };
+    });
+    
+    // Initialize CodeMirror with our custom mode
     editor = CodeMirror.fromTextArea(document.getElementById('code-editor'), {
-        mode: 'javascript',
+        mode: 'gamemaker',
         theme: 'ambiance',
         lineNumbers: true,
         autoCloseBrackets: true,
