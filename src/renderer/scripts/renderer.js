@@ -73,6 +73,46 @@ let assetCompletions = {
     scripts: new Set()   // Set of script names
 };
 
+// Code snippets for autocompletion
+const codeSnippets = [
+    {
+        name: "for",
+        code: "for (var i = 0; i < 10; i++) {\n    // code\n}"
+    },
+    {
+        name: "while",
+        code: "while (condition) {\n    // code\n}"
+    },
+    {
+        name: "repeat",
+        code: "repeat (10) {\n    // code\n}"
+    },
+    {
+        name: "if",
+        code: "if (condition) {\n    // code\n}"
+    },
+    {
+        name: "ifelse",
+        code: "if (condition) {\n    // code\n} else {\n    // else code\n}"
+    },
+    {
+        name: "switch",
+        code: "switch (variable) {\n    case value:\n        // code\n        break;\n}"
+    },
+    {
+        name: "move4",
+        code: "if (keyboard_check(vk_up)) y -= speed;\nif (keyboard_check(vk_down)) y += speed;\nif (keyboard_check(vk_left)) x -= speed;\nif (keyboard_check(vk_right)) x += speed;"
+    },
+    {
+        name: "key",
+        code: "if (keyboard_check_pressed(ord(\"X\"))) {\n    // do something\n}"
+    },
+    {
+        name: "log",
+        code: "show_debug_message(\"\");"
+    }
+];
+
 // Object-level scope tracking
 let currentObjectEvents = new Map(); // Map of event file paths to their content
 let objectLocalScope = new Set();    // Set of variables declared in any event of current object
@@ -618,9 +658,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Function to add completions that match the current word
         function addCompletions(items, itemType) {
             for (const item of items) {
-                const text = typeof item === 'string' ? item : item.displayText;
-                const displayText = typeof item === 'string' ? item : item.displayText;
-                const searchText = typeof item === 'string' ? item : item.displayText;
+                let text, displayText, searchText, hint;
+                
+                if (itemType === 'snippet') {
+                    text = item.code;
+                    displayText = item.name;
+                    searchText = item.name;
+                    hint = item.code;
+                } else {
+                    text = typeof item === 'string' ? item : item.displayText;
+                    displayText = typeof item === 'string' ? item : item.displayText;
+                    searchText = typeof item === 'string' ? item : item.displayText;
+                    hint = typeof item === 'object' ? item.hint : null;
+                }
                 
                 // Skip audio groups in autocompletion
                 if (typeof text === 'string' && text.startsWith('audiogroup_')) continue;
@@ -652,21 +702,45 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                             
                             element.appendChild(div);
+                            element.dataset.type = data.type; // Add data attribute for CSS styling
 
-                            // Set tooltip for functions
-                            if (itemType === 'function' && typeof item === 'object' && item.hint) {
-                                element.title = item.hint;
+                            // Set tooltip for functions and snippets
+                            if (hint) {
+                                element.title = hint;
                             }
                         }
                     };
 
                     // For functions, add a custom completion handler
                     if (itemType === 'function') {
-                        const originalText = completion.text;
-                        completion.text = originalText + "()";
+                        completion.text = text + "()";
                         completion.callback = function(cm) {
                             const pos = cm.getCursor();
                             cm.setCursor({line: pos.line, ch: pos.ch - 1});
+                        };
+                    }
+
+                    // For snippets, add custom handler
+                    if (itemType === 'snippet') {
+                        completion.callback = function(cm) {
+                            // Get indentation of current line
+                            const currentLine = cm.getLine(cursor.line);
+                            const indentation = currentLine.match(/^\s*/)[0];
+                            
+                            // Indent the snippet code
+                            const indentedCode = text
+                                .split('\n')
+                                .map((line, i) => i === 0 ? line : indentation + line)
+                                .join('\n');
+                            
+                            // Replace the current line with the indented snippet
+                            const from = {line: cursor.line, ch: 0};
+                            const to = {line: cursor.line, ch: currentLine.length};
+                            cm.replaceRange(indentedCode, from, to);
+                            
+                            // Place cursor after the snippet
+                            const newLines = indentedCode.split('\n').length - 1;
+                            cm.setCursor({line: cursor.line + newLines, ch: indentation.length});
                         };
                     }
 
@@ -700,6 +774,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (globalFunctions) {
             addCompletions(Array.from(globalFunctions), 'global-function');
         }
+
+        // Add code snippets
+        addCompletions(codeSnippets, 'snippet');
 
         return {
             list: list,
