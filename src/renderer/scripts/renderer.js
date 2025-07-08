@@ -1373,7 +1373,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } else {
                     cm.replaceSelection("    ", "end", "+input");
                 }
-            }
+            },
+            // Search & Replace bindings
+            "Ctrl-F": "search",
+            "Ctrl-H": "replace",
+            "Ctrl-G": "findNext",
+            "Shift-Ctrl-G": "findPrev",
+            "Shift-Ctrl-F": "replace",
+            "Shift-Ctrl-R": "replaceAll",
+            "Alt-G": "jumpToLine"
         },
         
         // Enable automatic autocompletion

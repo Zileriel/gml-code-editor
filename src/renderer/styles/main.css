@@ -701,4 +701,56 @@ li.CodeMirror-hint-active {
     content: "⚡";
     margin-right: 5px;
     opacity: 0.7;
+}
+
+/* Search & Replace Dialog Styling */
+.CodeMirror-dialog {
+    background: #252526;
+    color: #d4d4d4;
+    border-bottom: 1px solid #3c3c3c;
+    padding: 8px;
+    font-family: inherit;
+}
+
+.CodeMirror-dialog input {
+    background: #3c3c3c;
+    color: #d4d4d4;
+    border: 1px solid #4c4c4c;
+    padding: 4px 8px;
+    outline: none;
+    font-family: inherit;
+}
+
+.CodeMirror-dialog input:focus {
+    border-color: #007acc;
+}
+
+.CodeMirror-dialog button {
+    background: #0e639c;
+    color: #ffffff;
+    border: none;
+    padding: 4px 8px;
+    margin-left: 4px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.CodeMirror-dialog button:hover {
+    background: #1177bb;
+}
+
+.CodeMirror-search-hint {
+    color: #858585;
+    font-size: 0.9em;
+    margin-left: 8px;
+}
+
+/* Search match highlighting */
+.cm-searching {
+    background: #613214;
+    outline: 1px solid #804515;
+}
+
+.CodeMirror-selected.cm-searching {
+    background: #804515;
 } 
