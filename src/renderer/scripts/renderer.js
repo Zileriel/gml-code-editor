@@ -182,41 +182,71 @@ function updateObjectScope() {
             const closeBraces = (line.match(/\}/g) || []).length;
             braceLevel += openBraces - closeBraces;
 
-            // Check for object literal starts (including function arguments)
-            const objectLiteralStarts = [
-                /=\s*{/,                    // Assignment
-                /\(\s*{/,                   // Function argument
-                /,\s*{/,                    // Array/argument separator
-                /return\s+{/,               // Return statement
-                /:\s*{/,                    // Property value
-                /\[\s*{/,                   // Array element
-                /new\s+\w+\s*\(\s*[^{]*{/   // Constructor argument
+            // Enhanced object literal and struct detection for scripts
+            const scriptStructContexts = [
+                /function\s*\w*\s*\([^)]*\)\s*{/,   // Function declarations
+                /return\s*{/,                       // Return statements
+                /=\s*{/,                           // Assignments
+                /:\s*{/,                           // Property values
+                /\(\s*{/,                          // Function arguments
+                /,\s*{/,                           // Array/object literals in lists
+                /\[\s*{/,                          // Array elements
+                /^\s*{/,                           // Start of line
+                /\b(?:var|let|const)\s+\w+\s*=\s*{/, // Variable declarations
+                /\b(?:if|while|for)\s*\([^)]*{/,    // Control structures that might contain structs
+                /[^:]\s*{/                         // Any brace not part of a ternary
             ];
 
-            for (const pattern of objectLiteralStarts) {
+            // Check for any context that might introduce a struct
+            let structContextFound = false;
+            let inStructContext = false;
+
+            // First check if we're already in a struct context from previous lines
+            if (braceLevel > 0 && (inObjectLiteral || line.trim().startsWith('}'))) {
+                inStructContext = true;
+            }
+
+            // Then check for new struct contexts
+            for (const pattern of scriptStructContexts) {
                 if (pattern.test(line) && !isStringContext(line, line.indexOf('{'))) {
-                    inObjectLiteral = true;
-                    objectLiteralBraceLevel = braceLevel;
+                    structContextFound = true;
+                    inStructContext = true;
                     break;
                 }
             }
 
-            // Handle struct/object property declarations
-            if (inObjectLiteral) {
-                // Match property declarations in various formats
-                const propertyMatches = line.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g);
-                if (propertyMatches) {
-                    propertyMatches.forEach(match => {
-                        const propName = match.replace(':', '').trim();
+            // If we found a struct context or we're already in one, process property declarations
+            if (structContextFound || inStructContext || inObjectLiteral || braceLevel > 0) {
+                // Look for property declarations with more lenient whitespace handling
+                const propertyMatches = line.matchAll(/(?:^|\s*|[{,])\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\s*:/g);
+                for (const match of propertyMatches) {
+                    if (!isStringContext(line, match.index) && !isCommentContext(line, match.index)) {
+                        const propName = match[1].trim();
                         structProperties.add(propName);
-                        objectLocalScope.add(propName); // Add to object scope immediately
-                    });
+                        objectLocalScope.add(propName);
+                    }
                 }
 
-                // Check if we're exiting the object literal
-                if (braceLevel < objectLiteralBraceLevel) {
-                    inObjectLiteral = false;
+                // Also check for struct property access to validate usage
+                const propertyAccess = line.matchAll(/\.([a-zA-Z_][a-zA-Z0-9_]*)\b/g);
+                for (const match of propertyAccess) {
+                    if (!isStringContext(line, match.index) && !isCommentContext(line, match.index)) {
+                        const propName = match[1];
+                        structProperties.add(propName);
+                        objectLocalScope.add(propName);
+                    }
                 }
+
+                // If this line opens a new brace level, mark as entering object literal
+                if (openBraces > 0 && !inObjectLiteral) {
+                    inObjectLiteral = true;
+                    objectLiteralBraceLevel = braceLevel;
+                }
+            }
+
+            // Check if we're exiting the object literal
+            if (inObjectLiteral && braceLevel < objectLiteralBraceLevel) {
+                inObjectLiteral = false;
             }
 
             // Handle try-catch blocks
@@ -1053,7 +1083,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
-            // Check for object literal starts
+            // Check for object literal starts (including function arguments)
             const objectLiteralStarts = [
                 /=\s*{/,                    // Assignment
                 /\(\s*{/,                   // Function argument
@@ -1074,14 +1104,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Handle struct/object property declarations
             if (inObjectLiteral) {
-                // Match property declarations in various formats
-                const propertyMatches = line.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g);
-                if (propertyMatches) {
-                    propertyMatches.forEach(match => {
-                        const propName = match.replace(':', '').trim();
-                        structProperties.add(propName);
-                        localScope.add(propName);
-                    });
+                // Match property declarations in various formats, including inline and nested
+                const propertyMatches = line.matchAll(/(?:^|[{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g);
+                for (const match of propertyMatches) {
+                    const propName = match[1].trim();
+                    structProperties.add(propName);
+                    objectLocalScope.add(propName);
                 }
 
                 // Check if we're exiting the object literal
@@ -1097,7 +1125,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const catchMatch = line.match(/catch\s*\((\w+)\)/);
             if (catchMatch) {
                 catchVariable = catchMatch[1];
-                localScope.add(catchVariable);
+                objectLocalScope.add(catchVariable);
             }
             if (inTryCatch && braceLevel === 0) {
                 inTryCatch = false;
@@ -1230,7 +1258,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const fullId = getWordAtPosition(line, idIndex).word;
 
                     // Skip if it's a property name in an object literal
-                    if (afterId.trim().startsWith(':') && inObjectLiteral) return;
+                    if (afterId.trim().startsWith(':')) {
+                        const beforeColon = line.substring(0, idIndex + fullId.length).trim();
+                        // More lenient check for property declarations
+                        if (/^[a-zA-Z_][a-zA-Z0-9_]*\s*$/.test(beforeColon)) {
+                            structProperties.add(fullId);
+                            objectLocalScope.add(fullId);
+                            return;
+                        }
+                    }
 
                     // Skip if it's in any of our known scopes
                     if (localScope.has(fullId) || 
