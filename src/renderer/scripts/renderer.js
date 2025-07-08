@@ -1028,7 +1028,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             const closeBraces = (line.match(/\}/g) || []).length;
             braceLevel += openBraces - closeBraces;
 
-            // Check for object literal starts (including function arguments)
+            // Handle function declarations and their parameters
+            const functionMatch = line.match(/function\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*?)\)/);
+            if (functionMatch) {
+                inFunctionDecl = true;
+                currentFunction = functionMatch[1];
+                localScope.add(currentFunction);
+                
+                // Add function parameters to local scope
+                if (functionMatch[2]) {
+                    const params = functionMatch[2].split(',').map(p => p.trim());
+                    params.forEach(param => {
+                        if (param) localScope.add(param);
+                    });
+                }
+            }
+
+            // Check for object literal starts
             const objectLiteralStarts = [
                 /=\s*{/,                    // Assignment
                 /\(\s*{/,                   // Function argument
@@ -1055,7 +1071,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     propertyMatches.forEach(match => {
                         const propName = match.replace(':', '').trim();
                         structProperties.add(propName);
-                        localScope.add(propName); // Add to local scope immediately
+                        localScope.add(propName);
                     });
                 }
 
@@ -1077,16 +1093,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (inTryCatch && braceLevel === 0) {
                 inTryCatch = false;
                 catchVariable = null;
-            }
-
-            // Handle struct declarations
-            if (!inStructDeclaration && line.match(/=\s*{/)) {
-                const structMatch = line.match(/(\w+)\s*=\s*{/);
-                if (structMatch) {
-                    inStructDeclaration = true;
-                    structBraceStart = braceLevel;
-                    localScope.add(structMatch[1]);
-                }
             }
 
             // Handle constructor parameters
@@ -1115,16 +1121,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Handle implicit declarations through assignment
             if (!inStructDeclaration && !inEnum) {
-            const assignMatches = line.matchAll(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*=(?!=)/g);
-            for (const match of assignMatches) {
-                const varName = match[1];
-                const beforeAssign = line.substring(0, match.index).trim();
+                const assignMatches = line.matchAll(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*=(?!=)/g);
+                for (const match of assignMatches) {
+                    const varName = match[1];
+                    const beforeAssign = line.substring(0, match.index).trim();
                     
-                if (!beforeAssign.endsWith('=') && 
-                    !beforeAssign.endsWith('<') && 
-                    !beforeAssign.endsWith('>') && 
-                    !beforeAssign.includes('if') && 
-                    !beforeAssign.includes('while') && 
+                    if (!beforeAssign.endsWith('=') && 
+                        !beforeAssign.endsWith('<') && 
+                        !beforeAssign.endsWith('>') && 
+                        !beforeAssign.includes('if') && 
+                        !beforeAssign.includes('while') && 
                         !beforeAssign.includes('for') && 
                         !beforeAssign.includes('return') && 
                         !beforeAssign.includes('?') && 
@@ -1546,6 +1552,74 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Initialize project handling
     initializeProjectHandling();
+
+    // Add middle click navigation
+    editor.on('mousedown', async (cm, e) => {
+        if (e.button === 1) { // Middle click
+            e.preventDefault(); // Prevent default middle-click behavior
+            
+            // Get the token at the click position
+            const pos = cm.coordsChar({ left: e.clientX, top: e.clientY });
+            const token = cm.getTokenAt(pos);
+            
+            // Only navigate for functions, enums, and macros
+            if (token.type && (
+                token.type.includes('function') ||
+                token.string in globalFunctions ||
+                globalEnums.has(token.string) ||
+                globalMacros.has(token.string)
+            )) {
+                const identifier = token.string;
+                const declaration = await findDeclarationInProject(identifier);
+                
+                if (declaration) {
+                    // If declaration is in a different file, load it
+                    if (declaration.file !== editor.filePath) {
+                        const content = await loadScriptContent(declaration.file);
+                        editor.setValue(content || '');
+                        editor.filePath = declaration.file;
+                        editor.refresh();
+                        // Extract just the filename from the path
+                        const fileName = declaration.file.split(/[\/\\]/).pop();
+                        updateEditorHeader(`Editor - ${fileName}`);
+                    }
+                    
+                    // Jump to the declaration line
+                    const line = declaration.line;
+                    editor.setCursor(line, 0);
+                    editor.scrollIntoView({ line: Math.max(0, line - 5), ch: 0 }, 100);
+                    
+                    // Highlight the line briefly
+                    const marker = editor.markText(
+                        { line, ch: 0 },
+                        { line: line + 1, ch: 0 },
+                        { className: 'declaration-highlight' }
+                    );
+                    setTimeout(() => marker.clear(), 2000);
+                    
+                    showNotification(`Jumped to ${declaration.type} declaration`, 'info');
+                }
+            }
+        }
+    });
+
+    // Add hover effect for clickable identifiers
+    editor.on('mousemove', (cm, e) => {
+        const pos = cm.coordsChar({ left: e.clientX, top: e.clientY });
+        const token = cm.getTokenAt(pos);
+        
+        // Only show pointer for functions, enums, and macros
+        if (token.type && (
+            token.type.includes('function') ||
+            token.string in globalFunctions ||
+            globalEnums.has(token.string) ||
+            globalMacros.has(token.string)
+        )) {
+            cm.getWrapperElement().style.cursor = 'pointer';
+        } else {
+            cm.getWrapperElement().style.cursor = '';
+        }
+    });
 });
 
 function updateEditorHeader(title = 'Editor') {
@@ -2252,4 +2326,75 @@ function performReplace(all = false) {
             jumpToMatch(searchState.currentIndex);
         }
     }
+}
+
+// Declaration navigation functions
+async function findDeclarationInFile(identifier, content) {
+    const lines = content.split('\n');
+    
+    // Look for different types of declarations
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // Skip comments
+        if (line.trim().startsWith('//') || line.trim().startsWith('/*')) continue;
+        
+        // Check for function declarations
+        const funcMatch = line.match(new RegExp(`function\\s+${identifier}\\s*\\(`));
+        if (funcMatch) {
+            return { line: i, file: editor.filePath, type: 'function' };
+        }
+        
+        // Check for enum declarations
+        const enumMatch = line.match(new RegExp(`enum\\s+${identifier}\\s*\\{`));
+        if (enumMatch) {
+            return { line: i, file: editor.filePath, type: 'enum' };
+        }
+        
+        // Check for enum member declarations
+        if (line.includes(identifier) && line.trim().startsWith(identifier) && line.includes(',')) {
+            // Look backwards for the enum declaration
+            for (let j = i; j >= 0; j--) {
+                if (lines[j].includes('enum')) {
+                    return { line: i, file: editor.filePath, type: 'enum-member' };
+                }
+            }
+        }
+        
+        // Check for macro declarations
+        const macroMatch = line.match(new RegExp(`#macro\\s+${identifier}\\b`));
+        if (macroMatch) {
+            return { line: i, file: editor.filePath, type: 'macro' };
+        }
+    }
+    
+    return null;
+}
+
+async function findDeclarationInProject(identifier) {
+    try {
+        // First check current file
+        if (editor.filePath) {
+            const content = editor.getValue();
+            const result = await findDeclarationInFile(identifier, content);
+            if (result) return result;
+        }
+        
+        // Then check all project files
+        const scripts = await window.api.invoke('get-all-scripts');
+        for (const script of scripts) {
+            if (script === editor.filePath) continue; // Skip current file
+            
+            const content = await window.api.invoke('read-script-content', script);
+            const result = await findDeclarationInFile(identifier, content);
+            if (result) {
+                result.file = script;
+                return result;
+            }
+        }
+    } catch (error) {
+        console.error('Error finding declaration:', error);
+    }
+    
+    return null;
 }

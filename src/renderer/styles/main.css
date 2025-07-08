@@ -885,3 +885,25 @@ li.CodeMirror-hint-active {
     background: #8f5423;
     outline: 1px solid #9f6533;
 } 
+
+/* Declaration navigation styles */
+.declaration-highlight {
+    background-color: rgba(255, 255, 0, 0.2);
+    border-left: 2px solid #FFB871;
+    animation: fade-out 2s ease-out;
+}
+
+@keyframes fade-out {
+    from { background-color: rgba(255, 255, 0, 0.2); }
+    to { background-color: transparent; }
+}
+
+/* Cursor styles for clickable identifiers */
+.CodeMirror-line span[role="presentation"] {
+    transition: color 0.2s ease;
+}
+
+.CodeMirror-wrap .CodeMirror-line span[role="presentation"]:hover {
+    text-decoration: underline;
+    color: #FFB871;
+} 
