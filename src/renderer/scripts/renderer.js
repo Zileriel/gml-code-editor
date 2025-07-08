@@ -168,6 +168,11 @@ function isAssetReference(id) {
     return false;
 }
 
+// Helper function to check if an identifier is an audio group
+function isAudioGroup(id) {
+    return id.startsWith('audiogroup_');
+}
+
 // Global scope tracking
 const globalFunctions = new Set();
 const globalEnums = new Set();
@@ -471,6 +476,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const displayText = typeof item === 'string' ? item : item.displayText;
                 const searchText = typeof item === 'string' ? item : item.displayText;
                 
+                // Skip audio groups in autocompletion
+                if (typeof text === 'string' && text.startsWith('audiogroup_')) continue;
+                
                 if (searchText.toLowerCase().startsWith(currentWord.toLowerCase())) {
                     const completion = {
                         text: text,
@@ -549,11 +557,50 @@ document.addEventListener('DOMContentLoaded', async () => {
                     inString: false,
                     lastToken: null,
                     isFunction: false,
-                    parenDepth: 0  // Track nested parentheses
+                    parenDepth: 0,  // Track nested parentheses
+                    operatorExpected: false, // Track if we expect an operator
+                    inComment: false, // Track if we're in a single-line comment
+                    inBlockComment: false // Track if we're in a block comment
                 };
             },
             token: function(stream, state) {
-                // Check for strings first to avoid matching keywords inside strings
+                // Handle comments first
+                if (!state.inString) {
+                    // Check for single-line comments
+                    if (stream.match('//')) {
+                        state.inComment = true;
+                        stream.skipToEnd();
+                        return 'comment';
+                    }
+                    
+                    // Check for block comments
+                    if (stream.match('/*')) {
+                        state.inBlockComment = true;
+                        return 'comment';
+                    }
+                    
+                    if (state.inBlockComment) {
+                        if (stream.match('*/')) {
+                            state.inBlockComment = false;
+                            return 'comment';
+                        }
+                        stream.next();
+                        return 'comment';
+                    }
+                }
+
+                // Reset comment state at the start of each line
+                if (stream.sol()) {
+                    state.inComment = false;
+                }
+
+                // Skip processing if in comment
+                if (state.inComment || state.inBlockComment) {
+                    stream.next();
+                    return 'comment';
+                }
+
+                // Check for strings to avoid matching keywords inside strings
                 if (!state.inString) {
                     if (stream.peek() === '"' || stream.peek() === "'") {
                         state.inString = !state.inString;
@@ -564,6 +611,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (state.isFunction && stream.peek() === '(') {
                     state.parenDepth++;
                     stream.next();
+                    state.operatorExpected = false;
                     return 'bracket function-bracket';
                 }
 
@@ -574,6 +622,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (state.parenDepth === 0) {
                         state.isFunction = false;
                     }
+                    state.operatorExpected = true;
                     return 'bracket function-bracket';
                 }
 
@@ -585,30 +634,50 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Check for GameMaker specific tokens
                 if (!state.inString) {
                     const ch = stream.peek();
+                    
+                    // Handle operators
+                    if (/[+\-*/%=<>!&|^~]/.test(ch)) {
+                        stream.next();
+                        state.operatorExpected = false;
+                        return 'operator';
+                    }
+                    
                     if (/[a-zA-Z_]/.test(ch)) {
                         const word = stream.match(/[a-zA-Z_]\w*/)[0];
                         
                         // Check each type of token
                         if (builtinSet.has(word)) {
+                            state.operatorExpected = true;
                             state.lastToken = 'builtin';
                             return 'builtin';
                         }
-                        if (atomSet.has(word) || globalEnums.has(word) || globalMacros.has(word) || isAssetReference(word)) {
+                        if (atomSet.has(word) || globalEnums.has(word) || globalMacros.has(word) || 
+                            isAssetReference(word) || isAudioGroup(word)) {
+                            state.operatorExpected = true;
                             state.lastToken = 'atom';
                             return 'atom';
                         }
                         if (keywordSet.has(word)) {
+                            state.operatorExpected = false;
                             state.lastToken = 'keyword';
                             return 'keyword';
                         }
                         if (functionSet.has(word) || globalFunctions.has(word)) {
                             state.lastToken = 'function';
                             state.isFunction = true;
+                            state.operatorExpected = false;
                             return 'function';
                         }
 
                         // Let JavaScript mode handle other cases
                         stream.backUp(word.length);
+                    }
+
+                    // Handle numbers
+                    if (/[0-9]/.test(ch) || (ch === '.' && /[0-9]/.test(stream.peek()))) {
+                        stream.match(/\d*\.?\d*/);
+                        state.operatorExpected = true;
+                        return 'number';
                     }
                 }
 
@@ -739,6 +808,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const declaredFunctions = new Set();
         const usedVariables = new Set();
         const functionArguments = new Set(); // Track function arguments
+        const structProperties = new Set(); // Track struct property names
+        const catchBlockVariables = new Set(); // Track catch block variables
 
         // Global bracket/brace tracking for multi-line structures
         let globalOpenBraces = 0;
@@ -750,6 +821,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         let currentEnum = null;
         let currentFunction = null;
         let inFunctionParams = false;
+        let inStructDeclaration = false; // Track if we're inside a struct declaration
+        let inCatchBlock = false; // Track if we're inside a catch block
 
         // First pass: collect declarations and function arguments
         lines.forEach((line, lineIndex) => {
@@ -777,19 +850,72 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
-            // Check for function declarations and arguments
-            const funcMatch = line.match(/function\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*?)\)/);
-            if (funcMatch) {
-                currentFunction = funcMatch[1];
-                declaredFunctions.add(currentFunction);
-                if (funcMatch[2]) {
-                    const params = funcMatch[2].split(',').map(p => p.trim());
+            // Track catch blocks and their variables
+            const catchMatch = line.match(/\bcatch\s*\((\w+)\)/);
+            if (catchMatch) {
+                inCatchBlock = true;
+                if (catchMatch[1]) {
+                    catchBlockVariables.add(catchMatch[1]);
+                }
+            }
+            if (inCatchBlock && line.includes('{')) {
+                globalOpenBraces++;
+            }
+            if (inCatchBlock && line.includes('}')) {
+                globalOpenBraces--;
+                if (globalOpenBraces === 0) {
+                    inCatchBlock = false;
+                }
+            }
+
+            // Track struct declarations
+            if (line.includes('{')) {
+                globalOpenBraces++;
+                // Check if this is a struct declaration
+                if (line.includes('=') && line.includes('{')) {
+                    inStructDeclaration = true;
+                }
+            }
+            if (line.includes('}')) {
+                globalOpenBraces--;
+                if (globalOpenBraces === 0) {
+                    inStructDeclaration = false;
+                }
+            }
+
+            // Handle struct property declarations
+            if (inStructDeclaration) {
+                const propertyMatch = line.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:/);
+                if (propertyMatch) {
+                    structProperties.add(propertyMatch[1]);
+                }
+            }
+
+            // Check for all types of function declarations and arguments
+            const funcMatches = [
+                // Regular function declarations
+                line.match(/function\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*?)\)/),
+                // Struct method declarations
+                line.match(/([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*function\s*\((.*?)\)/),
+                // Variable function assignments
+                line.match(/([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*function\s*\((.*?)\)/),
+                // Arrow functions with parameters
+                line.match(/([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*\((.*?)\)\s*=>/),
+            ];
+
+            for (const match of funcMatches) {
+                if (match) {
+                    const funcName = match[1];
+                    currentFunction = funcName;
+                    declaredFunctions.add(funcName);
+                    const params = (match[2] || '').split(',').map(p => p.trim());
                     params.forEach(param => {
                         if (param) {
                             functionArguments.add(param);
                             declaredVariables.add(param);
                         }
                     });
+                    break; // Found a match, no need to check other patterns
                 }
             }
 
@@ -843,11 +969,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
-        // Reset block comment state and enum state for second pass
+        // Reset states for second pass
         globalInBlockComment = false;
         currentEnum = null;
         currentFunction = null;
         inFunctionParams = false;
+        inStructDeclaration = false;
+        inCatchBlock = false;
+        globalOpenBraces = 0;
 
         // Process each line
         lines.forEach((line, lineIndex) => {
@@ -899,24 +1028,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                         return;
                     }
 
-                    // Check if this is a struct property declaration
-                    const isInStruct = globalOpenBraces > 0 && line.includes(':') && !line.includes('function');
-                    if (isInStruct && idIndex < line.indexOf(':')) {
-                        declaredVariables.add(id);
-                        return;
-                    }
+                    // Check if this is a struct property declaration or usage
+                    if (structProperties.has(id)) return;
                     
                     // Get the full identifier
                     const fullId = getWordAtPosition(line, idIndex).word;
 
-                    // Check if it's an asset reference
-                    if (isAssetReference(fullId)) return;
+                    // Check if it's an asset reference or audio group
+                    if (isAssetReference(fullId) || isAudioGroup(fullId)) return;
                     
                     // Check if it's in object-level scope
                     if (objectLocalScope.has(fullId)) return;
 
                     // Check if it's a function argument
                     if (functionArguments.has(fullId)) return;
+
+                    // Check if it's a catch block variable
+                    if (catchBlockVariables.has(fullId)) return;
 
                     // Check if it's a color literal
                     const colorMatch = line.match(/#[0-9a-fA-F]{6}\b/);
@@ -989,9 +1117,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
 
-            // 3. Check for incorrect assignment operators
+            // 3. Check for incorrect assignment operators - Updated to handle ternary operators
             const assignmentMatch = line.match(/\b(\w+)\s*(==|!=|<=|>=|<|>)\s*([^;]+);/);
-            if (assignmentMatch && !line.includes('if') && !line.includes('while') && !line.includes('for') && !line.includes('return')) {
+            if (assignmentMatch && !line.includes('if') && !line.includes('while') && !line.includes('for') && 
+                !line.includes('return') && !line.includes('?')) { // Added check for ternary operator
                 // Additional check: make sure it's not part of a boolean expression
                 const beforeMatch = line.substring(0, assignmentMatch.index);
                 if (!beforeMatch.includes('(') && !beforeMatch.includes('return')) {
@@ -1290,6 +1419,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         .cm-s-ambiance .cm-atom { color: #FF8080 !important; }
         .cm-s-ambiance .cm-keyword, .cm-s-ambiance .cm-function { color: #FFB871 !important; }
         .cm-s-ambiance .cm-function-bracket { color: #FFB871 !important; }
+        .cm-s-ambiance .cm-operator { color: #C0C0C0 !important; }
+        .cm-s-ambiance .cm-number { color: #FF8080 !important; }
+        .cm-s-ambiance .cm-variable-2 { color: #FFF899 !important; }
+        
+        /* Comment styling */
+        .cm-s-ambiance .cm-comment {
+            color: #5B995B !important;
+            font-style: italic;
+        }
+        
+        /* Ensure operators maintain their color in all contexts */
+        .cm-s-ambiance span.cm-operator {
+            color: #C0C0C0 !important;
+        }
+        
+        /* Ensure numbers maintain their color in all contexts */
+        .cm-s-ambiance span.cm-number {
+            color: #FF8080 !important;
+        }
+        
+        /* Ensure expressions maintain proper coloring */
+        .cm-s-ambiance .cm-variable + .cm-operator,
+        .cm-s-ambiance .cm-number + .cm-operator,
+        .cm-s-ambiance .cm-atom + .cm-operator {
+            color: #C0C0C0 !important;
+        }
     `;
 
     // Add custom CSS to the document
