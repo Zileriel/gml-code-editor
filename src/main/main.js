@@ -39,7 +39,7 @@ async function createWindow() {
     });
 
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
-    mainWindow.webContents.openDevTools();
+    //mainWindow.webContents.openDevTools();
 
     // Load state once and use it for both menu and project loading
     const state = await loadState();
