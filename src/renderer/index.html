@@ -28,6 +28,54 @@
         <div id="editor" class="panel">
             <div class="panel-header">Editor</div>
             <div class="panel-content">
+                <div id="search-panel" class="search-panel hidden">
+                    <div class="search-row">
+                        <div class="search-input-container">
+                            <i class="bi bi-search"></i>
+                            <input type="text" id="search-input" placeholder="Find">
+                            <div class="search-count"></div>
+                        </div>
+                        <div class="search-actions">
+                            <button id="prev-match" title="Previous Match (Shift+Enter)">
+                                <i class="bi bi-chevron-up"></i>
+                            </button>
+                            <button id="next-match" title="Next Match (Enter)">
+                                <i class="bi bi-chevron-down"></i>
+                            </button>
+                            <button id="close-search" title="Close (Escape)">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="search-row replace-row">
+                        <div class="search-input-container">
+                            <i class="bi bi-arrow-return-right"></i>
+                            <input type="text" id="replace-input" placeholder="Replace">
+                        </div>
+                        <div class="search-actions">
+                            <button id="replace" title="Replace">Replace</button>
+                            <button id="replace-all" title="Replace All">Replace All</button>
+                        </div>
+                    </div>
+                    <div class="search-options">
+                        <label title="Match Case">
+                            <input type="checkbox" id="case-sensitive">
+                            Aa
+                        </label>
+                        <label title="Match Whole Word">
+                            <input type="checkbox" id="whole-word">
+                            <i class="bi bi-text-paragraph"></i>
+                        </label>
+                        <label title="Use Regular Expression">
+                            <input type="checkbox" id="use-regex">
+                            .*
+                        </label>
+                        <label title="Preserve Case">
+                            <input type="checkbox" id="preserve-case">
+                            <i class="bi bi-type"></i>
+                        </label>
+                    </div>
+                </div>
                 <textarea id="code-editor"></textarea>
             </div>
         </div>

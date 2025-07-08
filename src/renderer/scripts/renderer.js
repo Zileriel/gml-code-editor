@@ -1375,33 +1375,120 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             },
             // Search & Replace bindings
-            "Ctrl-F": "search",
-            "Ctrl-H": "replace",
-            "Ctrl-G": "findNext",
-            "Shift-Ctrl-G": "findPrev",
-            "Shift-Ctrl-F": "replace",
-            "Shift-Ctrl-R": "replaceAll",
-            "Alt-G": "jumpToLine"
-        },
+            "Ctrl-F": () => showSearchPanel(false),
+            "Ctrl-H": () => showSearchPanel(true),
+            "Ctrl-G": () => jumpToMatch(searchState.currentIndex + 1),
+            "Shift-Ctrl-G": () => jumpToMatch(searchState.currentIndex - 1),
+            "Esc": hideSearchPanel
+        }
+    });
+
+    // Initialize search panel functionality
+    const searchPanel = document.getElementById('search-panel');
+    const searchInput = document.getElementById('search-input');
+    const replaceInput = document.getElementById('replace-input');
+    const caseSensitive = document.getElementById('case-sensitive');
+    const wholeWord = document.getElementById('whole-word');
+    const useRegex = document.getElementById('use-regex');
+    const preserveCase = document.getElementById('preserve-case');
+
+    // Show search panel
+    function showSearchPanel(replace = false) {
+        searchPanel.classList.remove('hidden');
+        if (replace) {
+            searchPanel.classList.add('show-replace');
+        } else {
+            searchPanel.classList.remove('show-replace');
+        }
+        searchInput.focus();
+        searchInput.select();
         
-        // Enable automatic autocompletion
-        hintOptions: {
-            hint: CodeMirror.hint.gamemaker,
-            completeSingle: false,
-            alignWithWord: true,
-            closeOnUnfocus: true,
-            completeOnSingleClick: true,
-            customKeys: {
-                Up: function(cm, handle) { handle.moveFocus(-1); },
-                Down: function(cm, handle) { handle.moveFocus(1); },
-                PageUp: function(cm, handle) { handle.moveFocus(-10); },
-                PageDown: function(cm, handle) { handle.moveFocus(10); },
-                Home: function(cm, handle) { handle.setFocus(0); },
-                End: function(cm, handle) { handle.setFocus(handle.length - 1); },
-                Enter: function(cm, handle) {
-                    handle.pick();
-                }
+        // Initialize search if there's selected text
+        const selection = editor.getSelection();
+        if (selection) {
+            searchInput.value = selection;
+            searchState.query = selection;
+            updateSearchMatches();
+        }
+    }
+
+    // Hide search panel
+    function hideSearchPanel() {
+        searchPanel.classList.add('hidden');
+        searchPanel.classList.remove('show-replace');
+        editor.focus();
+        
+        // Clear search
+        if (searchState.overlay) {
+            editor.removeOverlay(searchState.overlay);
+        }
+        editor.getAllMarks().forEach(mark => mark.clear());
+    }
+
+    // Event listeners
+    searchInput.addEventListener('input', () => {
+        searchState.query = searchInput.value;
+        searchState.currentIndex = -1;
+        updateSearchMatches();
+        if (searchState.matches.length > 0) {
+            jumpToMatch(0);
+        }
+    });
+
+    replaceInput.addEventListener('input', () => {
+        searchState.replace = replaceInput.value;
+    });
+
+    document.getElementById('prev-match').addEventListener('click', () => {
+        jumpToMatch(searchState.currentIndex - 1);
+    });
+
+    document.getElementById('next-match').addEventListener('click', () => {
+        jumpToMatch(searchState.currentIndex + 1);
+    });
+
+    document.getElementById('close-search').addEventListener('click', hideSearchPanel);
+
+    document.getElementById('replace').addEventListener('click', () => {
+        performReplace(false);
+    });
+
+    document.getElementById('replace-all').addEventListener('click', () => {
+        performReplace(true);
+    });
+
+    // Search options
+    caseSensitive.addEventListener('change', () => {
+        searchState.caseSensitive = caseSensitive.checked;
+        updateSearchMatches();
+    });
+
+    wholeWord.addEventListener('change', () => {
+        searchState.wholeWord = wholeWord.checked;
+        updateSearchMatches();
+    });
+
+    useRegex.addEventListener('change', () => {
+        searchState.useRegex = useRegex.checked;
+        updateSearchMatches();
+    });
+
+    preserveCase.addEventListener('change', () => {
+        searchState.preserveCase = preserveCase.checked;
+    });
+
+    // Handle keyboard shortcuts in search panel
+    searchPanel.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            if (e.shiftKey) {
+                jumpToMatch(searchState.currentIndex - 1);
+            } else {
+                jumpToMatch(searchState.currentIndex + 1);
             }
+            e.preventDefault();
+        } else if (e.key === 'Escape') {
+            hideSearchPanel();
+            e.preventDefault();
         }
     });
 
@@ -1999,3 +2086,170 @@ window.api.receive('toggle-feather', () => {
     // Show notification
     showNotification(`Feather ${featherEnabled ? 'enabled' : 'disabled'}`, 'info');
 }); 
+
+// Search state
+let searchState = {
+    query: '',
+    replace: '',
+    caseSensitive: false,
+    wholeWord: false,
+    useRegex: false,
+    preserveCase: false,
+    currentIndex: -1,
+    matches: [],
+    overlay: null
+};
+
+// Function to update search matches
+function updateSearchMatches() {
+    const content = editor.getValue();
+    const query = searchState.query;
+    searchState.matches = [];
+    
+    if (!query) {
+        updateSearchCount();
+        return;
+    }
+
+    let flags = searchState.caseSensitive ? 'g' : 'gi';
+    let searchQuery = query;
+    
+    if (!searchState.useRegex) {
+        searchQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    
+    if (searchState.wholeWord) {
+        searchQuery = `\\b${searchQuery}\\b`;
+    }
+
+    try {
+        const regex = new RegExp(searchQuery, flags);
+        let match;
+        let lineIndex = 0;
+        let lastIndex = 0;
+
+        content.split('\n').forEach((line, lineNum) => {
+            while ((match = regex.exec(line)) !== null) {
+                searchState.matches.push({
+                    from: { line: lineNum, ch: match.index },
+                    to: { line: lineNum, ch: match.index + match[0].length },
+                    match: match[0]
+                });
+            }
+        });
+
+        // Update search count
+        updateSearchCount();
+        
+        // Update overlay
+        if (searchState.overlay) {
+            editor.removeOverlay(searchState.overlay);
+        }
+        
+        searchState.overlay = {
+            token: function(stream) {
+                if (stream.match(regex)) {
+                    return 'searching';
+                }
+                stream.next();
+                stream.skipTo(query[0]) || stream.skipToEnd();
+            }
+        };
+        
+        editor.addOverlay(searchState.overlay);
+    } catch (e) {
+        console.error('Invalid regex:', e);
+    }
+}
+
+// Function to update search count display
+function updateSearchCount() {
+    const countEl = document.querySelector('.search-count');
+    if (searchState.matches.length > 0) {
+        const current = searchState.currentIndex + 1;
+        countEl.textContent = `${current} of ${searchState.matches.length}`;
+    } else {
+        countEl.textContent = searchState.query ? 'No results' : '';
+    }
+}
+
+// Function to jump to match
+function jumpToMatch(index) {
+    if (searchState.matches.length === 0) return;
+    
+    // Wrap around
+    if (index >= searchState.matches.length) index = 0;
+    if (index < 0) index = searchState.matches.length - 1;
+    
+    searchState.currentIndex = index;
+    const match = searchState.matches[index];
+    
+    // Remove current match highlight
+    editor.getAllMarks().forEach(mark => {
+        if (mark.className === 'cm-searching cm-current') {
+            mark.clear();
+        }
+    });
+    
+    // Add new current match highlight
+    editor.markText(match.from, match.to, {
+        className: 'cm-searching cm-current'
+    });
+    
+    // Scroll to match
+    editor.scrollIntoView(match.from, 50);
+    
+    updateSearchCount();
+}
+
+// Function to perform replace
+function performReplace(all = false) {
+    if (!searchState.query) return;
+    
+    let replacement = searchState.replace;
+    if (!searchState.useRegex && searchState.preserveCase) {
+        // Preserve case function
+        replacement = (match) => {
+            if (match === match.toLowerCase()) return searchState.replace.toLowerCase();
+            if (match === match.toUpperCase()) return searchState.replace.toUpperCase();
+            if (match[0] === match[0].toUpperCase()) {
+                return searchState.replace.charAt(0).toUpperCase() + 
+                       searchState.replace.slice(1).toLowerCase();
+            }
+            return searchState.replace;
+        };
+    }
+
+    if (all) {
+        // Replace all matches
+        let flags = searchState.caseSensitive ? 'g' : 'gi';
+        let searchQuery = searchState.useRegex ? searchState.query : 
+            searchState.query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        
+        if (searchState.wholeWord) {
+            searchQuery = `\\b${searchQuery}\\b`;
+        }
+
+        try {
+            const regex = new RegExp(searchQuery, flags);
+            const content = editor.getValue();
+            const newContent = content.replace(regex, replacement);
+            editor.setValue(newContent);
+        } catch (e) {
+            console.error('Invalid regex:', e);
+        }
+    } else {
+        // Replace current match
+        if (searchState.currentIndex >= 0 && searchState.currentIndex < searchState.matches.length) {
+            const match = searchState.matches[searchState.currentIndex];
+            editor.replaceRange(
+                typeof replacement === 'function' ? 
+                    replacement(match.match) : replacement,
+                match.from,
+                match.to
+            );
+            updateSearchMatches();
+            jumpToMatch(searchState.currentIndex);
+        }
+    }
+}

@@ -745,12 +745,143 @@ li.CodeMirror-hint-active {
     margin-left: 8px;
 }
 
+/* Search Panel Styling */
+.search-panel {
+    background: #252526;
+    border-bottom: 1px solid #3c3c3c;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-family: inherit;
+}
+
+.search-panel.hidden {
+    display: none;
+}
+
+.search-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.search-input-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    background: #3c3c3c;
+    border: 1px solid #4c4c4c;
+    border-radius: 3px;
+    padding: 0 8px;
+    position: relative;
+}
+
+.search-input-container:focus-within {
+    border-color: #007acc;
+}
+
+.search-input-container i {
+    color: #858585;
+    font-size: 14px;
+    margin-right: 6px;
+}
+
+.search-input-container input {
+    background: transparent;
+    border: none;
+    color: #d4d4d4;
+    padding: 4px 0;
+    width: 100%;
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.search-input-container input:focus {
+    outline: none;
+}
+
+.search-count {
+    position: absolute;
+    right: 8px;
+    color: #858585;
+    font-size: 12px;
+    pointer-events: none;
+}
+
+.search-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.search-actions button {
+    background: transparent;
+    border: 1px solid transparent;
+    color: #d4d4d4;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.search-actions button:hover {
+    background: #3c3c3c;
+}
+
+.search-actions button:active {
+    background: #4c4c4c;
+}
+
+.search-actions button i {
+    font-size: 14px;
+}
+
+.search-actions button#replace,
+.search-actions button#replace-all {
+    background: #0e639c;
+    border-color: #0e639c;
+}
+
+.search-actions button#replace:hover,
+.search-actions button#replace-all:hover {
+    background: #1177bb;
+}
+
+.search-options {
+    display: flex;
+    gap: 12px;
+    padding: 0 4px;
+}
+
+.search-options label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #d4d4d4;
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.search-options input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+}
+
 /* Search match highlighting */
 .cm-searching {
     background: #613214;
     outline: 1px solid #804515;
 }
 
-.CodeMirror-selected.cm-searching {
+.cm-searching.cm-selected {
     background: #804515;
+}
+
+.cm-searching.cm-current {
+    background: #8f5423;
+    outline: 1px solid #9f6533;
 } 
