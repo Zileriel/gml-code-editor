@@ -13,5 +13,21 @@
   "devDependencies": {
     "electron": "^28.2.0",
     "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.gm-lite.app",
+    "productName": "GM Lite",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "icon": "icon.png"
+    },
+    "mac": {
+      "icon": "icon.png"
+    },
+    "linux": {
+      "icon": "icon.png"
+    }
   }
 } 
