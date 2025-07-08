@@ -444,7 +444,7 @@ async function initializeGlobalScope() {
     try {
         const scripts = await window.api.invoke('get-all-scripts');
         if (!scripts || scripts.length === 0) {
-            console.log('No scripts found or no project open');
+            // Remove debug log
             return;
         }
         
@@ -463,11 +463,6 @@ async function initializeGlobalScope() {
             }
         }
         
-        console.log('Global scope initialized:', {
-            functions: Array.from(globalFunctions),
-            enums: Array.from(globalEnums),
-            macros: Array.from(globalMacros)
-        });
     } catch (error) {
         console.error('Error initializing global scope:', error);
     }
@@ -475,7 +470,7 @@ async function initializeGlobalScope() {
 
 // Call this when a project is opened
 function handleProjectOpened(projectData) {
-    console.log('Project opened:', projectData);
+    // Remove debug log
     showNotification(`Project opened: ${projectData.path}`, 'success');
     
     // Clear all panels
@@ -622,10 +617,6 @@ async function loadGMLanguageSpec() {
         }
 
         updateLookupSets();
-        console.log(`Successfully loaded GameMaker language spec:
-            • ${gmFunctions.length} functions
-            • ${gmBuiltins.length} variables
-            • ${gmAtoms.length} constants`);
         showNotification(`Loaded GameMaker language specification`, 'success');
 
         if (editor) editor.refresh();
@@ -641,7 +632,7 @@ async function loadGMLanguageSpec() {
 
 // Initialize editor and load language spec
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('Renderer process started');
+    // Remove debug log
     await loadGMLanguageSpec();
     
     // Register custom hint function for code completion
@@ -1884,9 +1875,6 @@ function createTreeItem(item, itemType) {
             clearInspector();
             clearEditor();
         }
-
-        // Log the item details
-        console.log(`Selected ${itemType}:`, item);
     });
 
     return element;
@@ -2154,7 +2142,7 @@ window.api.send('toMain', 'Hello from renderer!');
 
 // Example of receiving messages from main process
 window.api.receive('fromMain', (data) => {
-    console.log('Received from main process:', data);
+    // Remove debug log
 });
 
 // Handle feather toggle
