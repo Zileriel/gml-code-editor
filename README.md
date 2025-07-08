@@ -5,5 +5,3 @@ TODO:
 - implement custom autocompletions
 
 FIX: 
-- issues with local scope
-
