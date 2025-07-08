@@ -805,6 +805,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             token: function(stream, state) {
                 // Handle comments first
                 if (!state.inString) {
+                    // Check for region directives
+                    if (stream.match('#region') || stream.match('#endregion')) {
+                        stream.skipToEnd();
+                        return 'comment';
+                    }
+                    
                     // Check for single-line comments
                     if (stream.match('//')) {
                         state.inComment = true;
@@ -1012,7 +1018,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Skip empty lines
             if (trimmedLine === '') return;
 
-            // Handle block comments
+            // Handle block comments and region directives
+            if (trimmedLine.startsWith('#region') || trimmedLine.startsWith('#endregion')) return;
             if (trimmedLine.includes('/*')) inBlockComment = true;
             if (trimmedLine.includes('*/')) {
                 inBlockComment = false;
@@ -1031,15 +1038,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Handle function declarations and their parameters
             const functionMatch = line.match(/function\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*?)\)/);
             if (functionMatch) {
-                inFunctionDecl = true;
                 currentFunction = functionMatch[1];
-                localScope.add(currentFunction);
+                objectLocalScope.add(currentFunction);
                 
-                // Add function parameters to local scope
+                // Add function parameters to object scope
                 if (functionMatch[2]) {
                     const params = functionMatch[2].split(',').map(p => p.trim());
                     params.forEach(param => {
-                        if (param) localScope.add(param);
+                        if (param) objectLocalScope.add(param);
+                    });
+                }
+            }
+
+            // Handle method declarations in object literals and class definitions
+            const methodMatch = line.match(/([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*function\s*\((.*?)\)|([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*?)\)\s*{/);
+            if (methodMatch) {
+                const params = methodMatch[2] || methodMatch[4];
+                if (params) {
+                    const paramList = params.split(',').map(p => p.trim());
+                    paramList.forEach(param => {
+                        if (param) objectLocalScope.add(param);
                     });
                 }
             }
@@ -1166,7 +1184,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Skip empty lines and comments
             if (trimmedLine === '' || trimmedLine.startsWith('//')) return;
 
-            // Handle block comments
+            // Handle block comments and region directives
+            if (trimmedLine.startsWith('#region') || trimmedLine.startsWith('#endregion')) return;
             if (trimmedLine.includes('/*')) inBlockComment = true;
             if (trimmedLine.includes('*/')) {
                 inBlockComment = false;
@@ -1200,6 +1219,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const identifiers = line.match(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g);
             if (identifiers) {
                 identifiers.forEach(id => {
+                    // Skip if it's a region directive
+                    if (line.trim().startsWith('#region') || line.trim().startsWith('#endregion')) return;
+                    
                     const idIndex = line.indexOf(id);
 
                     // Skip if in comment or string
