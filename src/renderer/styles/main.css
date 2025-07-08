@@ -669,4 +669,24 @@ li.CodeMirror-hint-active {
 
 .CodeMirror-hint .type-function {
     color: #B2B1FF;
+}
+
+.CodeMirror-hint .type-local {
+    color: #9CDCFE;
+}
+
+.CodeMirror-hint .type-enum {
+    color: #4EC9B0;
+}
+
+.CodeMirror-hint .type-macro {
+    color: #C586C0;
+}
+
+.CodeMirror-hint .type-global-function {
+    color: #DCDCAA;
+}
+
+.CodeMirror-hint .type-asset {
+    color: #CE9178;
 } 

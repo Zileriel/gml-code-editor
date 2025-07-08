@@ -685,6 +685,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         addCompletions(Array.from(assetCompletions.objects), 'asset');
         addCompletions(Array.from(assetCompletions.scripts), 'asset');
 
+        // Add local scope completions
+        if (objectLocalScope.size > 0) {
+            addCompletions(Array.from(objectLocalScope), 'local');
+        }
+
+        // Add global scope completions
+        if (globalEnums) {
+            addCompletions(Array.from(globalEnums), 'enum');
+        }
+        if (globalMacros) {
+            addCompletions(Array.from(globalMacros), 'macro');
+        }
+        if (globalFunctions) {
+            addCompletions(Array.from(globalFunctions), 'global-function');
+        }
+
         return {
             list: list,
             from: CodeMirror.Pos(line, start),
