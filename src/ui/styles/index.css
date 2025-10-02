@@ -82,11 +82,11 @@ main {
 		font-size: 13px;
 		user-select: none;
 
-    #logo {
-      width: 20px;
-      height: auto;
-      margin: 5px;
-    }
+		#logo {
+			width: 20px;
+			height: auto;
+			margin: 5px;
+		}
 
 		.separator {
 			border: none;
@@ -215,6 +215,59 @@ main {
 	#sidebar {
 		grid-area: sidebar;
 		border-right: 1px solid var(--color-border);
+		list-style: none;
+		padding: 0;
+
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+
+		font-size: 1.5rem;
+
+		li {
+			position: relative;
+			width: 100%;
+
+			button, a {
+				all: unset;
+				display: flex;
+				justify-content: center;
+				width: 100%;
+				padding: 0.5rem 0;
+				color: var(--color-text);
+				cursor: pointer;
+				transition: color 0.2s;
+
+				&:hover {
+					color: var(--color-heading);
+				}
+			}
+
+			&.active {
+				border-left: 2px solid var(--color-primary);
+			}
+
+			&[data-changes]:not([data-changes="0"])::after {
+				content: attr(data-changes);
+				font-size: 0.70rem;
+				color: var(--color-background);
+				background-color: var(--color-primary);
+				border-radius: 50%;
+        height: 16px;
+        width: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--color-heading);
+
+        position: absolute;
+        transform: translateX(12px);
+
+        right: 1rem;
+        bottom: 0;
+        
+			}
+		}
 	}
 
 	#main {
