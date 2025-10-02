@@ -1,0 +1,15 @@
+{
+  "appId": "com.whisperer.my-app",
+  "files": ["src/electron", "dist-react"],
+  "icon": "./icon.png",
+  "mac": {
+    "target": "dmg"
+  },
+  "linux": {
+    "target": "AppImage",
+    "category": "Utility"
+  },
+  "win": {
+    "target": ["portable", "msi"]
+  }
+}

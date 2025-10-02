@@ -1,0 +1,37 @@
+{
+  "name": "gm-lite",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "src/electron/main.js",
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:react dev:electron",
+    "dev:react": "vite",
+    "dev:electron": "cross-env NODE_ENV=development electron .",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "dist:mac": "npm run build && electron-builder --mac --arm64",
+    "dist:win": "npm run build && electron-builder --win --x64",
+    "dist:linux": "npm run build && electron-builder --linux --x64"
+  },
+  "dependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.32.0",
+    "@types/react": "^19.1.9",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "cross-env": "^10.0.0",
+    "electron": "^37.2.6",
+    "electron-builder": "^26.0.12",
+    "eslint": "^9.32.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.3.0",
+    "npm-run-all": "^4.1.5",
+    "vite": "^7.1.0"
+  }
+}
