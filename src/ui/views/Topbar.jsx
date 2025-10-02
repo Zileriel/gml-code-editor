@@ -28,6 +28,7 @@ import {
 export default function Topbar() {
 	return (
 		<ul id="topbar">
+			<img id='logo' src="./icon.png" width={20} height={20} alt="GM Lite" />
 			<li>
 				<Label>File</Label>
 				<Submenu>

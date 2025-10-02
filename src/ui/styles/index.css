@@ -78,132 +78,138 @@ main {
 		margin: 0;
 		padding: 0;
 		display: flex;
-		align-items: baseline;
+		align-items: center;
 		font-size: 13px;
 		user-select: none;
-	}
 
-	#topbar .separator {
-		border: none;
-		border-top: 1px solid var(--color-border);
-		height: 0px;
-		margin: 4px 0;
-	}
+    #logo {
+      width: 20px;
+      height: auto;
+      margin: 5px;
+    }
 
-	#topbar > li {
-		padding: 0 0.5rem;
-		height: 100%;
-		display: flex;
-		align-items: center;
-		cursor: pointer;
-		position: relative;
-	}
+		.separator {
+			border: none;
+			border-top: 1px solid var(--color-border);
+			height: 0px;
+			margin: 4px 0;
+		}
 
-	#topbar > li:hover {
-		background-color: var(--color-highlight);
-	}
+		> li {
+			padding: 0 0.5rem;
+			height: 100%;
+			display: flex;
+			align-items: center;
+			cursor: pointer;
+			position: relative;
 
-	#topbar li:has(> .submenu) {
-		position: relative;
-	}
+			> .submenu {
+				top: 100%;
+				left: 0;
+			}
 
-	#topbar li:has(> .submenu):hover > .submenu {
-		display: block;
-	}
+			&:hover {
+				background-color: var(--color-highlight);
+			}
+		}
 
-	#topbar .submenu {
-		display: none;
-		position: absolute;
-		background-color: var(--color-foreground);
-		border: 1px solid var(--color-border);
-		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-		z-index: 1000;
-		list-style: none;
-		margin: 0;
-		padding: 4px;
-		min-width: 200px;
-		border-radius: 8px;
-	}
+		li:has(> .submenu) {
+			position: relative;
 
-	#topbar > li > .submenu {
-		top: 100%;
-		left: 0;
-	}
+			&:hover > .submenu {
+				display: block;
+			}
+		}
 
-	#topbar .submenu.nested {
-		top: -4px;
-		left: 100%;
-	}
+		.submenu {
+			display: none;
+			position: absolute;
+			background-color: var(--color-foreground);
+			border: 1px solid var(--color-border);
+			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+			z-index: 1000;
+			list-style: none;
+			margin: 0;
+			padding: 4px;
+			min-width: 200px;
+			border-radius: 8px;
 
-	#topbar .menu-item {
-		white-space: nowrap;
-		padding: 0;
-		margin: 0;
-		cursor: pointer;
-		border-radius: 4px;
-		position: relative;
-	}
+			&.nested {
+				top: -4px;
+				left: 100%;
+			}
+		}
 
-	#topbar .menu-item.disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
+		.menu-item {
+			white-space: nowrap;
+			padding: 0;
+			margin: 0;
+			cursor: pointer;
+			border-radius: 4px;
+			position: relative;
 
-	#topbar .menu-item-content {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 4px 8px;
-		width: 100%;
-	}
+			&.disabled {
+				opacity: 0.5;
+				cursor: not-allowed;
+			}
+		}
 
-	#topbar .menu-item:not(.disabled):hover > .menu-item-content {
-		background-color: var(--color-secondary);
-		border-radius: 4px;
-	}
+		.menu-item-content {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			padding: 4px 8px;
+			width: 100%;
+		}
 
-	#topbar .icon-space {
-		width: 16px;
-		height: 16px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		flex-shrink: 0;
-	}
+		.menu-item:not(.disabled):hover > .menu-item-content {
+			background-color: var(--color-secondary);
+			border-radius: 4px;
+		}
 
-	#topbar .custom-icon {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 14px;
-	}
+		.icon-space {
+			width: 16px;
+			height: 16px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			flex-shrink: 0;
+		}
 
-	#topbar .check-icon {
-		font-size: 14px;
-	}
+		.custom-icon {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 14px;
+		}
 
-	#topbar .radio-dot {
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		background-color: currentColor;
-	}
+		.check-icon {
+			font-size: 14px;
+		}
 
-	#topbar .label {
-		flex: 1;
-	}
+		.radio-dot {
+			width: 8px;
+			height: 8px;
+			border-radius: 50%;
+			background-color: currentColor;
+		}
 
-	#topbar .accelerator {
-		margin-left: auto;
-		font-size: 11px;
-		opacity: 0.6;
-		padding-left: 24px;
-	}
+		.label {
+			flex: 1;
+		}
 
-	#topbar .submenu-arrow {
-		margin-left: 8px;
-		font-size: 12px;
-		opacity: 0.6;
+		.accelerator {
+			margin-left: auto;
+			font-size: 11px;
+			opacity: 0.6;
+			padding-left: 24px;
+		}
+
+		.submenu-arrow {
+			margin-left: 8px;
+			font-size: 12px;
+			opacity: 0.6;
+		}
 	}
 
 	#sidebar {
