@@ -1,7 +1,14 @@
 import React from 'react'
+import Sidebar from './views/Sidebar'
+import Main from './views/Main'
+import StatusBar from './views/StatusBar'
 
 export default function App() {
   return (
-    <div>App</div>
+    <main>
+      <Sidebar />
+      <Main />
+      <StatusBar />
+    </main>
   )
 }
