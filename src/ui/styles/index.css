@@ -1,0 +1,58 @@
+@import url('./normalize.css');
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--color-primary: #60908e;
+		--color-secondary: #2d343c;
+
+		--color-text: #b4b4b4;
+		--color-heading: #fafafa;
+
+		--color-background: #242424;
+		--color-foreground: #2c2c2c;
+
+		--color-border: #3a3a3a;
+		--color-shadow: rgba(0, 0, 0, 0.2);
+
+		--color-info: #2196f3;
+		--color-success: #4caf50;
+		--color-warning: #ffc107;
+		--color-error: #f44336;
+	}
+}
+
+@media (prefers-color-scheme: light) {
+	:root {
+    --color-primary: #60908e;
+		--color-secondary: #2d343c;
+
+		--color-text: #242424;
+		--color-heading: #121212;
+
+		--color-background: #fafafa;
+		--color-foreground: #ffffff;
+
+		--color-border: #e0e0e0;
+		--color-shadow: rgba(0, 0, 0, 0.1);
+
+		--color-info: #1976d2;
+		--color-success: #388e3c;
+		--color-warning: #ffa000;
+		--color-error: #d32f2f;
+	}
+}
+
+:root {
+	font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+	line-height: 1.5;
+	font-weight: 400;
+
+	color-scheme: light dark;
+	color: var(--color-text);
+	background-color: var(--color-background);
+
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
