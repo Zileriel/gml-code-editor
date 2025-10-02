@@ -57,18 +57,154 @@
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 
-  overflow: hidden;
+	overflow: hidden;
 }
 
 main {
 	display: grid;
-	grid-template: 1fr 30px / 50px 1fr;
+	grid-template: 30px 1fr 30px / 50px 1fr;
 	grid-template-areas:
+		'topbar topbar'
 		'sidebar main'
 		'statusbar statusbar';
 
 	width: 100vw;
 	height: 100vh;
+
+	#topbar {
+		grid-area: topbar;
+		border-bottom: 1px solid var(--color-border);
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		align-items: baseline;
+		font-size: 13px;
+		user-select: none;
+	}
+
+	#topbar .separator {
+		border: none;
+		border-top: 1px solid var(--color-border);
+		height: 0px;
+		margin: 4px 0;
+	}
+
+	#topbar > li {
+		padding: 0 0.5rem;
+		height: 100%;
+		display: flex;
+		align-items: center;
+		cursor: pointer;
+		position: relative;
+	}
+
+	#topbar > li:hover {
+		background-color: var(--color-highlight);
+	}
+
+	#topbar li:has(> .submenu) {
+		position: relative;
+	}
+
+	#topbar li:has(> .submenu):hover > .submenu {
+		display: block;
+	}
+
+	#topbar .submenu {
+		display: none;
+		position: absolute;
+		background-color: var(--color-foreground);
+		border: 1px solid var(--color-border);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+		z-index: 1000;
+		list-style: none;
+		margin: 0;
+		padding: 4px;
+		min-width: 200px;
+		border-radius: 8px;
+	}
+
+	#topbar > li > .submenu {
+		top: 100%;
+		left: 0;
+	}
+
+	#topbar .submenu.nested {
+		top: -4px;
+		left: 100%;
+	}
+
+	#topbar .menu-item {
+		white-space: nowrap;
+		padding: 0;
+		margin: 0;
+		cursor: pointer;
+		border-radius: 4px;
+		position: relative;
+	}
+
+	#topbar .menu-item.disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	#topbar .menu-item-content {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 4px 8px;
+		width: 100%;
+	}
+
+	#topbar .menu-item:not(.disabled):hover > .menu-item-content {
+		background-color: var(--color-secondary);
+		border-radius: 4px;
+	}
+
+	#topbar .icon-space {
+		width: 16px;
+		height: 16px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+	}
+
+	#topbar .custom-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 14px;
+	}
+
+	#topbar .check-icon {
+		font-size: 14px;
+	}
+
+	#topbar .radio-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background-color: currentColor;
+	}
+
+	#topbar .label {
+		flex: 1;
+	}
+
+	#topbar .accelerator {
+		margin-left: auto;
+		font-size: 11px;
+		opacity: 0.6;
+		padding-left: 24px;
+	}
+
+	#topbar .submenu-arrow {
+		margin-left: 8px;
+		font-size: 12px;
+		opacity: 0.6;
+	}
 
 	#sidebar {
 		grid-area: sidebar;

@@ -1,5 +1,4 @@
 import { app, BrowserWindow, Menu, nativeImage } from 'electron';
-import { menuTemplate } from './menu.js';
 
 // Node.js modules
 import path from 'path';
@@ -35,6 +34,8 @@ const createWindow = () => {
 		},
 	});
 
+	mainWindow.setMenuBarVisibility(false);
+
 	if (IS_DEVELOPMENT) {
 		mainWindow.loadURL(`http://localhost:${DEVELOPMENT_PORT}`);
 	} else {
@@ -60,10 +61,6 @@ function initializeApp() {
 	if (process.platform === 'darwin') {
 		app.dock.setIcon(icon);
 	}
-
-	mainWindow.webContents.on('did-finish-load', () => {
-		Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
-	});
 
 	app.on('activate', () => {
 		if (BrowserWindow.getAllWindows().length === 0) {
