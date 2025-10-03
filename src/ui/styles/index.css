@@ -56,8 +56,6 @@
 	text-rendering: optimizeLegibility;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
-
-	overflow: hidden;
 }
 
 main {
@@ -70,6 +68,7 @@ main {
 
 	width: 100vw;
 	height: 100vh;
+	overflow: hidden;
 
 	#topbar {
 		grid-area: topbar;
@@ -273,25 +272,38 @@ main {
 
 	#main {
 		grid-area: main;
+		display: flex;
+		height: 100%;
 
 		#explorer {
 			height: 100%;
+			max-height: calc(100vh - 60px);
 			border-right: 1px solid var(--color-border);
 			width: 250px;
 			min-width: 100px;
 			max-width: 400px;
 			padding: 0.5rem 1rem;
-      user-select: none;
+			user-select: none;
 
-			float: left;
-			overflow-y: auto;
 			background-color: var(--color-background);
 			box-shadow: 2px 0 5px var(--color-shadow);
+			display: flex;
+			flex-direction: column;
+			flex-shrink: 0;
+			overflow: hidden;
 
 			#explorer-header {
 				display: flex;
 				justify-content: space-between;
 				align-items: center;
+
+				.title {
+					overflow: hidden;
+					text-overflow: ellipsis;
+					white-space: nowrap;
+					max-width: 150px;
+					font-weight: 500;
+				}
 
 				.actions {
 					display: flex;
@@ -324,11 +336,109 @@ main {
 				}
 			}
 
-			#explorer-items {
-				list-style: none;
-				margin: 0;
-				padding: 0;
+			#explorer-content {
 				margin-top: 0.5rem;
+				overflow-y: auto;
+				overflow-x: hidden;
+				flex: 1;
+				min-height: 0;
+				height: 0;
+
+				&::-webkit-scrollbar {
+					width: 0;
+					height: 0;
+				}
+			}
+
+			.no-project {
+				text-align: center;
+				padding: 2rem;
+				color: var(--color-text);
+				opacity: 0.7;
+
+				p {
+					margin: 0.5rem 0;
+				}
+			}
+
+			.project-tree {
+				.main-folder {
+					margin-bottom: 0.5rem;
+				}
+
+				.folder-header {
+					display: flex;
+					align-items: center;
+					gap: 0.5rem;
+					padding: 0.25rem 0.5rem;
+					margin: 0 -0.5rem;
+					cursor: pointer;
+					border-radius: 4px;
+					font-weight: 500;
+
+					&:hover {
+						background-color: var(--color-highlight);
+					}
+
+					.chevron {
+						font-size: 0.8rem;
+						color: var(--color-text);
+					}
+
+					.folder-name {
+						color: var(--color-heading);
+					}
+				}
+
+				.folder-content {
+					margin-left: 1rem;
+					padding-left: 0.5rem;
+					border-left: 1px solid var(--color-border);
+				}
+
+				.asset-group {
+					margin-bottom: 0.25rem;
+
+					.folder-header {
+						font-weight: normal;
+						font-size: 0.9rem;
+					}
+				}
+
+				.asset-list {
+					margin-left: 1rem;
+				}
+
+				.asset-item {
+					display: flex;
+					align-items: center;
+					gap: 0.5rem;
+					padding: 0.25rem 0.5rem;
+					margin: 0.1rem -0.5rem;
+					border-radius: 4px;
+					cursor: pointer;
+					font-size: 0.9rem;
+
+					&:hover {
+						background-color: var(--color-highlight);
+					}
+
+					.asset-icon {
+						font-size: 0.9rem;
+						color: var(--color-text);
+						opacity: 0.8;
+					}
+
+					.asset-name {
+						font-size: 0.85rem;
+					}
+
+					&.top-level {
+						margin: 0.1rem 0;
+						padding: 0.25rem 0;
+						border-radius: 4px;
+					}
+				}
 			}
 		}
 	}

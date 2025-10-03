@@ -28,7 +28,7 @@ import {
 export default function Topbar() {
 	return (
 		<ul id="topbar">
-			<img id='logo' src="./icon.png" width={20} height={20} alt="GM Lite" />
+			<img id="logo" src="./icon.png" width={20} height={20} alt="GM Lite" />
 			<li>
 				<Label>File</Label>
 				<Submenu>
@@ -36,14 +36,14 @@ export default function Topbar() {
 						label="New Window"
 						accelerator="Ctrl+Shift+W"
 						icon={<FiFile />}
-						click={() => {}}
+						click={() => window.menu.newWindow()}
 					/>
 					<Separator />
 					<MenuItem
 						label="Open Project"
 						accelerator="Ctrl+O"
 						icon={<FiFolder />}
-						click={() => {}}
+						click={() => window.menu.openProject()}
 					/>
 					<MenuItem label="Open Recent" click={() => {}}>
 						<Submenu>
@@ -135,12 +135,6 @@ export default function Topbar() {
 						icon={<FiRefreshCw />}
 						click={() => {}}
 					/>
-					<MenuItem
-						label="Force Reload"
-						accelerator="Ctrl+Shift+R"
-						icon={<FiRefreshCw />}
-						click={() => {}}
-					/>
 					<Separator />
 					<MenuItem label="Appearance" click={() => {}}>
 						<Submenu>
@@ -198,6 +192,11 @@ export default function Topbar() {
 					<MenuItem
 						label="Open Project Folder"
 						icon={<FiFolder />}
+						click={() => {}}
+					/>
+					<MenuItem
+						label="Toggle Developer Tools"
+						accelerator="Ctrl+Shift+I"
 						click={() => {}}
 					/>
 				</Submenu>
@@ -278,4 +277,3 @@ function MenuItem({
 		</li>
 	);
 }
-
