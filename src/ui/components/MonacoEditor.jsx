@@ -7,6 +7,8 @@ import gmlCompletionProvider from '../../shared/gmlCompletionProvider.js';
 import gmlHoverProvider from '../../shared/gmlHoverProvider.js';
 import gmlSignatureHelpProvider from '../../shared/gmlSignatureHelpProvider.js';
 import gmlColorProvider from '../../shared/gmlColorProvider.js';
+import gmlLintingProvider from '../../shared/gmlLintingProvider.js';
+import gmlCodeActionsProvider from '../../shared/gmlCodeActionsProvider.js';
 import gmlDefinitionsParser from '../../shared/gmlDefinitionsParser.js';
 
 let isGmlRegisteredGlobally = false;
@@ -135,6 +137,8 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 							await gmlHoverProvider.initialize();
 							await gmlSignatureHelpProvider.initialize();
 							await gmlColorProvider.initialize();
+							await gmlLintingProvider.initialize();
+							await gmlCodeActionsProvider.initialize();
 
 							// Register GML language
 							monaco.languages.register({ id: 'gml' });
@@ -169,6 +173,9 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 							);
 
 							monaco.languages.registerColorProvider('gml', gmlColorProvider);
+
+							// Register code actions provider (quick fixes)
+							monaco.languages.registerCodeActionProvider('gml', gmlCodeActionsProvider);
 
 							isGmlRegisteredGlobally = true;
 						} catch (error) {
@@ -251,13 +258,52 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 						gmlLanguage.updateTokenizer(monaco);
 					};
 
+					// Function to update diagnostics
+					const updateDiagnostics = (model) => {
+						if (!model || getMonacoLanguage(language) !== 'gml') return;
+
+						// Run linting
+						const diagnostics = gmlLintingProvider.validateCode(model);
+						
+						// Set diagnostics in Monaco
+						monaco.editor.setModelMarkers(model, 'gml', diagnostics);
+						
+						// Count problems by severity - using correct Monaco severity values
+						const problemCounts = diagnostics.reduce((acc, diag) => {
+							switch (diag.severity) {
+								case 8: acc.errors++; break;     // Monaco Error
+								case 4: acc.warnings++; break;   // Monaco Warning  
+								case 1: acc.hints++; break;      // Monaco Hint
+								default: acc.info++; break;      // Monaco Info
+							}
+							return acc;
+						}, { errors: 0, warnings: 0, hints: 0, info: 0 });
+
+						return problemCounts;
+					};
+
 					// Update variable scope on initial load
 					updateVariableScope(model);
+					
+					// Run initial linting
+					setTimeout(() => {
+						if (model && getMonacoLanguage(language) === 'gml') {
+							updateDiagnostics(model);
+						}
+					}, 100);
 
-					// Set up content change listener for real-time variable tracking
+					// Set up content change listener for real-time variable tracking and linting
 					if (model) {
-						model.onDidChangeContent(() => {
+						model.onDidChangeContent((e) => {
 							updateVariableScope(model);
+							
+							// Debounce linting to avoid too frequent updates
+							if (model._lintingTimeout) {
+								clearTimeout(model._lintingTimeout);
+							}
+							model._lintingTimeout = setTimeout(() => {
+								updateDiagnostics(model);
+							}, 300); // Reduced from 500ms to 300ms for better responsiveness
 						});
 					}
 
@@ -388,10 +434,22 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 								}
 							}
 
+							// Get current diagnostics for problem count
+							const markers = monaco.editor.getModelMarkers({ resource: model.uri });
+							const problemCounts = markers.reduce((acc, marker) => {
+								switch (marker.severity) {
+									case 8: acc.errors++; break;     // MarkerSeverity.Error
+									case 4: acc.warnings++; break;   // MarkerSeverity.Warning
+									case 1: acc.hints++; break;      // MarkerSeverity.Hint
+									default: acc.info++; break;      // MarkerSeverity.Info
+								}
+								return acc;
+							}, { errors: 0, warnings: 0, hints: 0, info: 0 });
+
 							updateEditorStatus({
 								line: lineNumber,
 								column: column,
-								problems: 0, // Use number instead of array
+								problems: problemCounts,
 								currentFunction: functionCallInfo || currentFunction || null,
 							});
 						}

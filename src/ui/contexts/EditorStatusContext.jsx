@@ -13,7 +13,7 @@ const EditorStatusContext = createContext({
 export const EditorStatusProvider = ({ children }) => {
 	const [line, setLine] = useState(1);
 	const [column, setColumn] = useState(1);
-	const [problems, setProblems] = useState(0);
+	const [problems, setProblems] = useState({ errors: 0, warnings: 0, hints: 0, info: 0 });
 	const [currentFunction, setCurrentFunction] = useState(null);
 
 	const updatePosition = useCallback((newLine, newColumn) => {
@@ -22,7 +22,12 @@ export const EditorStatusProvider = ({ children }) => {
 	}, []);
 
 	const updateProblems = useCallback((problemCount) => {
-		setProblems(problemCount);
+		// Handle both old format (number) and new format (object)
+		if (typeof problemCount === 'number') {
+			setProblems({ errors: problemCount, warnings: 0, hints: 0, info: 0 });
+		} else if (typeof problemCount === 'object') {
+			setProblems(problemCount);
+		}
 	}, []);
 
 	const updateCurrentFunction = useCallback((functionInfo) => {
@@ -35,7 +40,12 @@ export const EditorStatusProvider = ({ children }) => {
 			setColumn(status.column);
 		}
 		if (status.problems !== undefined) {
-			setProblems(status.problems);
+			// Handle both old format (number) and new format (object)
+			if (typeof status.problems === 'number') {
+				setProblems({ errors: status.problems, warnings: 0, hints: 0, info: 0 });
+			} else if (typeof status.problems === 'object') {
+				setProblems(status.problems);
+			}
 		}
 		if (status.currentFunction !== undefined) {
 			setCurrentFunction(status.currentFunction);

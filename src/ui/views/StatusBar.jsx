@@ -13,9 +13,6 @@ import {
 export default function StatusBar() {
 	const { line, column, problems, currentFunction } = useEditorStatus();
 	const [problemStatus, setProblemStatus] = useState('No Problems');
-	const [errors, setErrors] = useState(0);
-	const [warnings, setWarnings] = useState(0);
-	const [suggestions, setSuggestions] = useState(0);
 	const [positionStatus, setPositionStatus] = useState('');
 	const [selected, setSelected] = useState(0);
 	const [functionStatus, setFunctionStatus] = useState('');
@@ -23,22 +20,34 @@ export default function StatusBar() {
 	useEffect(() => {
 		let status = [];
 
-		if (errors > 0) {
-			status.push(`Errors: ${errors}`);
-		}
-		if (warnings > 0) {
-			status.push(`Warnings: ${warnings}`);
-		}
-		if (suggestions > 0) {
-			status.push(`Suggestions: ${suggestions}`);
+		let errorCount = 0;
+		let warningCount = 0; 
+		let hintCount = 0;
+
+		if (typeof problems === 'number') {
+			errorCount = problems;
+		} else if (typeof problems === 'object' && problems) {
+			errorCount = problems.errors || 0;
+			warningCount = problems.warnings || 0;
+			hintCount = problems.hints || 0;
 		}
 
-		if (errors === 0 && warnings === 0 && suggestions === 0) {
+		if (errorCount > 0) {
+			status.push(`Errors: ${errorCount}`);
+		}
+		if (warningCount > 0) {
+			status.push(`Warnings: ${warningCount}`);
+		}
+		if (hintCount > 0) {
+			status.push(`Hints: ${hintCount}`);
+		}
+
+		if (errorCount === 0 && warningCount === 0 && hintCount === 0) {
 			setProblemStatus('No Problems');
 		} else {
 			setProblemStatus(status.join(', '));
 		}
-	}, [errors, warnings, suggestions]);
+	}, [problems]);
 
 	useEffect(() => {
 		let status = `Ln ${line}, Col ${column}`;
@@ -80,14 +89,7 @@ export default function StatusBar() {
 		}
 	}, [currentFunction]);
 
-	useEffect(() => {
-		// Update problems from editor status context
-		if (typeof problems === 'number') {
-			setErrors(problems);
-		} else if (Array.isArray(problems)) {
-			setErrors(problems.length);
-		}
-	}, [problems]);
+
 
 	return (
 		<div id="statusbar">
@@ -95,13 +97,13 @@ export default function StatusBar() {
 				<li className="item">
 					<button data-tooltip={problemStatus}>
 						<div>
-							<FaCircleXmark /> {errors}
+							<FaCircleXmark /> {typeof problems === 'object' ? (problems.errors || 0) : (typeof problems === 'number' ? problems : 0)}
 						</div>
 						<div>
-							<FaTriangleExclamation /> {warnings}
+							<FaTriangleExclamation /> {typeof problems === 'object' ? (problems.warnings || 0) : 0}
 						</div>
 						<div>
-							<FaCircleInfo /> {suggestions}
+							<FaCircleInfo /> {typeof problems === 'object' ? (problems.hints || 0) : 0}
 						</div>
 					</button>
 				</li>
