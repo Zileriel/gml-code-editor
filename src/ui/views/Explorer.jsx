@@ -6,11 +6,13 @@ import {
 	FaArrowsRotate,
 	FaRegSquareMinus,
 	FaFile,
-	FaCube,
-	FaNoteSticky,
 	FaChevronRight,
 	FaChevronDown,
 } from 'react-icons/fa6';
+
+import iconScript from '../assets/icon_script.png';
+import iconObject from '../assets/icon_object.png';
+import iconNote from '../assets/icon_notes.png';
 
 export default function Explorer() {
 	const [projectData, setProjectData] = useState(null);
@@ -38,11 +40,15 @@ export default function Explorer() {
 	const getAssetIcon = (type) => {
 		switch (type) {
 			case 'script':
-				return <FaFile className="asset-icon script" />;
+				return (
+					<img src={iconScript} alt="script" className="asset-icon script" />
+				);
 			case 'object':
-				return <FaCube className="asset-icon object" />;
+				return (
+					<img src={iconObject} alt="object" className="asset-icon object" />
+				);
 			case 'note':
-				return <FaNoteSticky className="asset-icon note" />;
+				return <img src={iconNote} alt="note" className="asset-icon note" />;
 			default:
 				return <FaFile className="asset-icon" />;
 		}

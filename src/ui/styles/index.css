@@ -431,6 +431,13 @@ main {
 						opacity: 0.8;
 					}
 
+					img.asset-icon {
+						width: 1rem;
+						height: 1rem;
+						object-fit: contain;
+						border-radius: 2px;
+					}
+
 					.asset-name {
 						font-size: 0.8rem;
 					}
@@ -499,6 +506,8 @@ main {
 	position: relative;
 	overflow: hidden;
 	max-width: calc(100vw - 300px);
+	max-height: calc(100vh - 60px);
+	z-index: 5;
 }
 
 .editor-zero-state {
