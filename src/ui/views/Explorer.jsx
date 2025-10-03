@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useEditor } from '../contexts/EditorContext';
 
 import {
 	FaFileCirclePlus,
-	FaFolderPlus,
 	FaArrowsRotate,
 	FaRegSquareMinus,
 	FaFile,
@@ -15,6 +15,7 @@ import {
 export default function Explorer() {
 	const [projectData, setProjectData] = useState(null);
 	const [expandedFolders, setExpandedFolders] = useState({});
+	const { openFile, openObjectFiles } = useEditor();
 
 	useEffect(() => {
 		if (window.api?.onProjectLoaded) {
@@ -44,6 +45,17 @@ export default function Explorer() {
 				return <FaNoteSticky className="asset-icon note" />;
 			default:
 				return <FaFile className="asset-icon" />;
+		}
+	};
+
+	const handleAssetClick = (asset) => {
+		if (asset.type === 'object') {
+			openObjectFiles(asset);
+		} else {
+			openFile({
+				asset,
+				content: asset.content,
+			});
 		}
 	};
 
@@ -85,7 +97,10 @@ export default function Explorer() {
 					{isExpanded && (
 						<div className="asset-list">
 							{groupAssets.map((asset) => (
-								<div key={asset.name} className="asset-item">
+								<div
+									key={asset.name}
+									className="asset-item"
+									onClick={() => handleAssetClick(asset)}>
 									{getAssetIcon(asset.type)}
 									<span className="asset-name">{asset.name}</span>
 								</div>
@@ -99,7 +114,10 @@ export default function Explorer() {
 		if (topLevelAssets.length > 0) {
 			topLevelAssets.forEach((asset) => {
 				result.push(
-					<div key={asset.name} className="asset-item top-level">
+					<div
+						key={asset.name}
+						className="asset-item top-level"
+						onClick={() => handleAssetClick(asset)}>
 						{getAssetIcon(asset.type)}
 						<span className="asset-name">{asset.name}</span>
 					</div>
