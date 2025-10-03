@@ -9,8 +9,8 @@ contextBridge.exposeInMainWorld('api', {
 	},
 	invoke: (channel, data) => {
 		return ipcRenderer.invoke(channel, data);
-  },
-  
+	},
+
 	onProjectLoaded: (callback) => {
 		const listener = (event, projectData) => callback(projectData);
 		ipcRenderer.on('project:loaded', listener);
@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('menu', {
 	/*======= File =======*/
 	newWindow: () => ipcRenderer.send('menu:new-window'),
 	openProject: () => ipcRenderer.invoke('menu:open-project'),
+	openRecentProject: (projectPath) =>
+		ipcRenderer.invoke('menu:open-recent-project', projectPath),
 	refreshProject: () => ipcRenderer.invoke('menu:refresh-project'),
 	getRecentProjects: () => ipcRenderer.invoke('menu:get-recent-projects'),
 	saveProject: () => ipcRenderer.send('menu:save-project'),

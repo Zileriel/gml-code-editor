@@ -1,11 +1,4 @@
-import {
-	app,
-	BrowserWindow,
-	ipcMain,
-	Menu,
-	nativeImage,
-	dialog,
-} from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage, dialog } from 'electron';
 import Store from 'electron-store';
 
 // Node.js modules
@@ -36,6 +29,7 @@ const createWindow = () => {
 	mainWindow = new BrowserWindow({
 		width: DEFAULT_WINDOW_WIDTH,
 		height: DEFAULT_WINDOW_HEIGHT,
+		backgroundColor: '#191919',
 		icon: ICON_PATH,
 		webPreferences: {
 			preload: path.join(APP_PATH, 'src', 'electron', 'preload.js'),
@@ -98,6 +92,48 @@ app.on('window-all-closed', () => {
 		app.quit();
 	}
 });
+//#endregion
+
+//#region Recent Projects Management
+
+/**
+ * Adds a project to recent projects list
+ * @param {string} projectPath - Path to the project
+ * @param {string} projectName - Name of the project
+ */
+function addToRecentProjects(projectPath, projectName) {
+	const recentProjects = store.get('recentProjects', []);
+
+	const filtered = recentProjects.filter(
+		(project) => project.path !== projectPath
+	);
+
+	filtered.unshift({
+		path: projectPath,
+		name: projectName,
+		lastOpened: new Date().toISOString(),
+	});
+
+	const limited = filtered.slice(0, 10);
+
+	store.set('recentProjects', limited);
+}
+
+/**
+ * Gets the list of recent projects
+ * @returns {Array} Array of recent project objects
+ */
+function getRecentProjects() {
+	const recentProjects = store.get('recentProjects', []);
+	return recentProjects.filter((project) => {
+		try {
+			return fs.existsSync(project.path);
+		} catch {
+			return false;
+		}
+	});
+}
+
 //#endregion
 
 //#region GameMaker Project Scanner
@@ -337,6 +373,9 @@ ipcMain.handle('menu:open-project', async () => {
 	// Scan the project
 	const projectData = await scanGameMakerProject(projectPath);
 
+	// Add to recent projects
+	addToRecentProjects(projectPath, projectData.name);
+
 	// Send project data to renderer
 	mainWindow.webContents.send('project:loaded', projectData);
 
@@ -344,8 +383,7 @@ ipcMain.handle('menu:open-project', async () => {
 });
 
 ipcMain.handle('menu:get-recent-projects', async () => {
-	// Return a list of recent projects
-	return [];
+	return getRecentProjects();
 });
 
 ipcMain.on('menu:save-project', () => {
@@ -372,10 +410,50 @@ ipcMain.handle('menu:refresh-project', async () => {
 	const currentProject = store.get('currentProject');
 	if (currentProject && fs.existsSync(currentProject)) {
 		const projectData = await scanGameMakerProject(currentProject);
+
+		// Update recent projects (move to top)
+		addToRecentProjects(currentProject, projectData.name);
+
 		mainWindow.webContents.send('project:loaded', projectData);
 		return projectData;
 	}
 	return null;
+});
+
+ipcMain.handle('menu:open-recent-project', async (event, projectPath) => {
+	if (!projectPath || !fs.existsSync(projectPath)) {
+		dialog.showErrorBox(
+			'Project Not Found',
+			'The selected project no longer exists at the specified location.'
+		);
+		return null;
+	}
+
+	// Check if it's still a valid GameMaker project
+	const files = fs.readdirSync(projectPath);
+	const yypFile = files.find((file) => file.endsWith('.yyp'));
+
+	if (!yypFile) {
+		dialog.showErrorBox(
+			'Invalid Project',
+			'Selected folder no longer contains a GameMaker project (.yyp file).'
+		);
+		return null;
+	}
+
+	// Save current project
+	store.set('currentProject', projectPath);
+
+	// Scan the project
+	const projectData = await scanGameMakerProject(projectPath);
+
+	// Update recent projects (move to top)
+	addToRecentProjects(projectPath, projectData.name);
+
+	// Send project data to renderer
+	mainWindow.webContents.send('project:loaded', projectData);
+
+	return projectData;
 });
 //#endregion
 //#endregion

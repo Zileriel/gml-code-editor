@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
 	FiFile,
 	FiSave,
@@ -26,6 +26,41 @@ import {
 } from 'react-icons/fi';
 
 export default function Topbar() {
+	const [recentProjects, setRecentProjects] = useState([]);
+
+	useEffect(() => {
+		const loadRecentProjects = async () => {
+			if (window.menu?.getRecentProjects) {
+				try {
+					const projects = await window.menu.getRecentProjects();
+					setRecentProjects(projects);
+				} catch (error) {
+					console.error('Failed to load recent projects:', error);
+				}
+			}
+		};
+
+		loadRecentProjects();
+
+		if (window.api?.onProjectLoaded) {
+			const removeListener = window.api.onProjectLoaded(() => {
+				loadRecentProjects();
+			});
+
+			return removeListener;
+		}
+	}, []);
+
+	const handleRecentProjectClick = async (projectPath) => {
+		if (window.menu?.openRecentProject) {
+			try {
+				await window.menu.openRecentProject(projectPath);
+			} catch (error) {
+				console.error('Failed to open recent project:', error);
+			}
+		}
+	};
+
 	return (
 		<ul id="topbar">
 			<img id="logo" src="./icon.png" width={20} height={20} alt="GM Lite" />
@@ -47,7 +82,18 @@ export default function Topbar() {
 					/>
 					<MenuItem label="Open Recent" click={() => {}}>
 						<Submenu>
-							<MenuItem label="No Recent Projects" enabled={false} />
+							{recentProjects.length === 0 ? (
+								<MenuItem label="No Recent Projects" enabled={false} />
+							) : (
+								recentProjects.map((project, index) => (
+									<MenuItem
+										key={project.path}
+										label={project.name}
+										accelerator={index < 9 ? `Ctrl+${index + 1}` : undefined}
+										click={() => handleRecentProjectClick(project.path)}
+									/>
+								))
+							)}
 						</Submenu>
 					</MenuItem>
 					<Separator />

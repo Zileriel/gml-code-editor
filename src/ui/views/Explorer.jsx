@@ -122,11 +122,6 @@ export default function Explorer() {
 							<FaFileCirclePlus />
 						</button>
 					</li>
-					<li data-tooltip="New Folder">
-						<button>
-							<FaFolderPlus />
-						</button>
-					</li>
 					<li data-tooltip="Refresh">
 						<button onClick={() => window.menu?.refreshProject?.()}>
 							<FaArrowsRotate />
