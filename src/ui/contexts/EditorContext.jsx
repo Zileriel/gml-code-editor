@@ -13,6 +13,7 @@ export const useEditor = () => {
 export const EditorProvider = ({ children }) => {
 	const [openTabs, setOpenTabs] = useState([]);
 	const [activeTab, setActiveTab] = useState(null);
+	const [editorInstance, setEditorInstance] = useState(null);
 
 	const openFile = useCallback(
 		(fileInfo) => {
@@ -117,6 +118,27 @@ export const EditorProvider = ({ children }) => {
 		return 'plaintext';
 	};
 
+	const goToNextProblem = useCallback(() => {
+		if (editorInstance) {
+			// Trigger Monaco's "Go to Next Problem" action
+			editorInstance.trigger('statusbar', 'editor.action.marker.nextInFiles');
+		}
+	}, [editorInstance]);
+
+	const goToPreviousProblem = useCallback(() => {
+		if (editorInstance) {
+			// Trigger Monaco's "Go to Previous Problem" action
+			editorInstance.trigger('statusbar', 'editor.action.marker.prevInFiles');
+		}
+	}, [editorInstance]);
+
+	const showHover = useCallback(() => {
+		if (editorInstance) {
+			// Show hover information at current cursor position
+			editorInstance.trigger('statusbar', 'editor.action.showHover');
+		}
+	}, [editorInstance]);
+
 	const value = {
 		openTabs,
 		activeTab,
@@ -126,6 +148,11 @@ export const EditorProvider = ({ children }) => {
 		closeTab,
 		updateTabContent,
 		reorderTabs,
+		editorInstance,
+		setEditorInstance,
+		goToNextProblem,
+		goToPreviousProblem,
+		showHover,
 	};
 
 	return (

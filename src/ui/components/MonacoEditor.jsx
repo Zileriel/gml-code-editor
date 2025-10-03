@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { useEditorStatus } from '../contexts/EditorStatusContext';
+import { useEditor } from '../contexts/EditorContext';
 import gmlLanguage from '../../shared/gmlLanguage.js';
 import gmlTheme from '../../shared/gmlTheme.js';
 import gmlCompletionProvider from '../../shared/gmlCompletionProvider.js';
@@ -18,6 +19,7 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 	const containerRef = useRef(null);
 	const resizeObserverRef = useRef(null);
 	const { updateEditorStatus } = useEditorStatus();
+	const { setEditorInstance } = useEditor();
 
 	React.useEffect(() => {
 		if (editorRef.current && containerRef.current) {
@@ -175,7 +177,10 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 							monaco.languages.registerColorProvider('gml', gmlColorProvider);
 
 							// Register code actions provider (quick fixes)
-							monaco.languages.registerCodeActionProvider('gml', gmlCodeActionsProvider);
+							monaco.languages.registerCodeActionProvider(
+								'gml',
+								gmlCodeActionsProvider
+							);
 
 							isGmlRegisteredGlobally = true;
 						} catch (error) {
@@ -189,6 +194,7 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 				}}
 				onMount={(editor, monaco) => {
 					editorRef.current = editor;
+					setEditorInstance(editor);
 
 					// Force the theme and language
 					monaco.editor.setTheme('gml-theme');
@@ -264,27 +270,38 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 
 						// Run linting
 						const diagnostics = gmlLintingProvider.validateCode(model);
-						
+
 						// Set diagnostics in Monaco
 						monaco.editor.setModelMarkers(model, 'gml', diagnostics);
-						
+
 						// Count problems by severity - using correct Monaco severity values
-						const problemCounts = diagnostics.reduce((acc, diag) => {
-							switch (diag.severity) {
-								case 8: acc.errors++; break;     // Monaco Error
-								case 4: acc.warnings++; break;   // Monaco Warning  
-								case 1: acc.hints++; break;      // Monaco Hint
-								default: acc.info++; break;      // Monaco Info
-							}
-							return acc;
-						}, { errors: 0, warnings: 0, hints: 0, info: 0 });
+						const problemCounts = diagnostics.reduce(
+							(acc, diag) => {
+								switch (diag.severity) {
+									case 8:
+										acc.errors++;
+										break; // Monaco Error
+									case 4:
+										acc.warnings++;
+										break; // Monaco Warning
+									case 1:
+										acc.hints++;
+										break; // Monaco Hint
+									default:
+										acc.info++;
+										break; // Monaco Info
+								}
+								return acc;
+							},
+							{ errors: 0, warnings: 0, hints: 0, info: 0 }
+						);
 
 						return problemCounts;
 					};
 
 					// Update variable scope on initial load
 					updateVariableScope(model);
-					
+
 					// Run initial linting
 					setTimeout(() => {
 						if (model && getMonacoLanguage(language) === 'gml') {
@@ -296,7 +313,7 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 					if (model) {
 						model.onDidChangeContent((e) => {
 							updateVariableScope(model);
-							
+
 							// Debounce linting to avoid too frequent updates
 							if (model._lintingTimeout) {
 								clearTimeout(model._lintingTimeout);
@@ -435,16 +452,29 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 							}
 
 							// Get current diagnostics for problem count
-							const markers = monaco.editor.getModelMarkers({ resource: model.uri });
-							const problemCounts = markers.reduce((acc, marker) => {
-								switch (marker.severity) {
-									case 8: acc.errors++; break;     // MarkerSeverity.Error
-									case 4: acc.warnings++; break;   // MarkerSeverity.Warning
-									case 1: acc.hints++; break;      // MarkerSeverity.Hint
-									default: acc.info++; break;      // MarkerSeverity.Info
-								}
-								return acc;
-							}, { errors: 0, warnings: 0, hints: 0, info: 0 });
+							const markers = monaco.editor.getModelMarkers({
+								resource: model.uri,
+							});
+							const problemCounts = markers.reduce(
+								(acc, marker) => {
+									switch (marker.severity) {
+										case 8:
+											acc.errors++;
+											break; // MarkerSeverity.Error
+										case 4:
+											acc.warnings++;
+											break; // MarkerSeverity.Warning
+										case 1:
+											acc.hints++;
+											break; // MarkerSeverity.Hint
+										default:
+											acc.info++;
+											break; // MarkerSeverity.Info
+									}
+									return acc;
+								},
+								{ errors: 0, warnings: 0, hints: 0, info: 0 }
+							);
 
 							updateEditorStatus({
 								line: lineNumber,

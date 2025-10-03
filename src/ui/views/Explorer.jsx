@@ -17,7 +17,7 @@ import iconNote from '../assets/icon_notes.png';
 export default function Explorer() {
 	const [projectData, setProjectData] = useState(null);
 	const [expandedFolders, setExpandedFolders] = useState({});
-	const { openFile, openObjectFiles } = useEditor();
+	const { openFile, openObjectFiles, activeTab, openTabs } = useEditor();
 
 	useEffect(() => {
 		if (window.api?.onProjectLoaded) {
@@ -65,6 +65,20 @@ export default function Explorer() {
 		}
 	};
 
+	const isAssetActive = (asset) => {
+		if (!activeTab) return false;
+
+		// Check if asset name matches active tab exactly (for scripts/notes)
+		if (activeTab === asset.name) return true;
+
+		// For objects, only show as active if the current active tab belongs to this object
+		if (asset.type === 'object') {
+			return activeTab.startsWith(asset.name + '_');
+		}
+
+		return false;
+	};
+
 	const renderAssetList = (assets, type) => {
 		if (!assets || assets.length === 0) return null;
 
@@ -105,7 +119,9 @@ export default function Explorer() {
 							{groupAssets.map((asset) => (
 								<div
 									key={asset.name}
-									className="asset-item"
+									className={`asset-item ${
+										isAssetActive(asset) ? 'active' : ''
+									}`}
 									onClick={() => handleAssetClick(asset)}>
 									{getAssetIcon(asset.type)}
 									<span className="asset-name">{asset.name}</span>
@@ -122,7 +138,9 @@ export default function Explorer() {
 				result.push(
 					<div
 						key={asset.name}
-						className="asset-item top-level"
+						className={`asset-item top-level ${
+							isAssetActive(asset) ? 'active' : ''
+						}`}
 						onClick={() => handleAssetClick(asset)}>
 						{getAssetIcon(asset.type)}
 						<span className="asset-name">{asset.name}</span>
@@ -141,17 +159,17 @@ export default function Explorer() {
 					{projectData ? projectData.name : 'Explorer'}
 				</span>
 				<ul className="actions">
-					<li data-tooltip="New File">
+					<li title="New File">
 						<button>
 							<FaFileCirclePlus />
 						</button>
 					</li>
-					<li data-tooltip="Refresh">
+					<li title="Refresh">
 						<button onClick={() => window.menu?.refreshProject?.()}>
 							<FaArrowsRotate />
 						</button>
 					</li>
-					<li data-tooltip="Collapse">
+					<li title="Collapse">
 						<button
 							onClick={() => {
 								const collapsed = {};

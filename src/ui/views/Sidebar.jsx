@@ -10,17 +10,17 @@ export default function Sidebar() {
 
   return (
 		<ul id="sidebar">
-			<li className="active" data-tooltip="Explorer (Ctrl+Shift+E)" data-changes={explorerChanges}>
+			<li className="active" title="Explorer (Ctrl+Shift+E)" data-changes={explorerChanges}>
 				<button>
 					<LuFiles />
 				</button>
 			</li>
-			<li data-tooltip="Search (Ctrl+Shift+F)" data-changes={searchChanges}>
+			<li title="Search (Ctrl+Shift+F)" data-changes={searchChanges}>
 				<button>
 					<LuSearch />
 				</button>
 			</li>
-			<li data-tooltip="Source Control (Ctrl+Shift+G)" data-changes={sourceControlChanges}>
+			<li title="Source Control (Ctrl+Shift+G)" data-changes={sourceControlChanges}>
 				<button>
 					<LuGitFork />
 				</button>

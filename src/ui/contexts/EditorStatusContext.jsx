@@ -13,7 +13,12 @@ const EditorStatusContext = createContext({
 export const EditorStatusProvider = ({ children }) => {
 	const [line, setLine] = useState(1);
 	const [column, setColumn] = useState(1);
-	const [problems, setProblems] = useState({ errors: 0, warnings: 0, hints: 0, info: 0 });
+	const [problems, setProblems] = useState({
+		errors: 0,
+		warnings: 0,
+		hints: 0,
+		info: 0,
+	});
 	const [currentFunction, setCurrentFunction] = useState(null);
 
 	const updatePosition = useCallback((newLine, newColumn) => {
@@ -42,7 +47,12 @@ export const EditorStatusProvider = ({ children }) => {
 		if (status.problems !== undefined) {
 			// Handle both old format (number) and new format (object)
 			if (typeof status.problems === 'number') {
-				setProblems({ errors: status.problems, warnings: 0, hints: 0, info: 0 });
+				setProblems({
+					errors: status.problems,
+					warnings: 0,
+					hints: 0,
+					info: 0,
+				});
 			} else if (typeof status.problems === 'object') {
 				setProblems(status.problems);
 			}

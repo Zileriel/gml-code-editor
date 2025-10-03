@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useEditorStatus } from '../contexts/EditorStatusContext';
+import { useEditor } from '../contexts/EditorContext';
 
 //#region Icons
 import {
@@ -12,6 +13,7 @@ import {
 
 export default function StatusBar() {
 	const { line, column, problems, currentFunction } = useEditorStatus();
+	const { goToNextProblem } = useEditor();
 	const [problemStatus, setProblemStatus] = useState('No Problems');
 	const [positionStatus, setPositionStatus] = useState('');
 	const [selected, setSelected] = useState(0);
@@ -21,7 +23,7 @@ export default function StatusBar() {
 		let status = [];
 
 		let errorCount = 0;
-		let warningCount = 0; 
+		let warningCount = 0;
 		let hintCount = 0;
 
 		if (typeof problems === 'number') {
@@ -89,21 +91,53 @@ export default function StatusBar() {
 		}
 	}, [currentFunction]);
 
+	const hasProblems = () => {
+		if (!problems) return false;
+		if (typeof problems === 'number') return problems > 0;
+		if (typeof problems === 'object') {
+			return (
+				(problems.errors || 0) +
+					(problems.warnings || 0) +
+					(problems.hints || 0) >
+				0
+			);
+		}
+		return false;
+	};
 
+	const handleProblemsClick = () => {
+		if (!hasProblems()) {
+			return; // No problems to navigate to
+		}
+
+		// Navigate to the next problem in Monaco
+		goToNextProblem();
+	};
 
 	return (
 		<div id="statusbar">
 			<ul className="left items">
-				<li className="item">
-					<button data-tooltip={problemStatus}>
+				<li className="item" title={problemStatus}>
+					<button
+						className={`problems-button ${
+							hasProblems() ? 'has-problems' : 'no-problems'
+						}`}
+						onClick={handleProblemsClick}>
 						<div>
-							<FaCircleXmark /> {typeof problems === 'object' ? (problems.errors || 0) : (typeof problems === 'number' ? problems : 0)}
+							<FaCircleXmark />{' '}
+							{typeof problems === 'object'
+								? problems.errors || 0
+								: typeof problems === 'number'
+								? problems
+								: 0}
 						</div>
 						<div>
-							<FaTriangleExclamation /> {typeof problems === 'object' ? (problems.warnings || 0) : 0}
+							<FaTriangleExclamation />{' '}
+							{typeof problems === 'object' ? problems.warnings || 0 : 0}
 						</div>
 						<div>
-							<FaCircleInfo /> {typeof problems === 'object' ? (problems.hints || 0) : 0}
+							<FaCircleInfo />{' '}
+							{typeof problems === 'object' ? problems.hints || 0 : 0}
 						</div>
 					</button>
 				</li>
