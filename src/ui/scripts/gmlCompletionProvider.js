@@ -173,6 +173,8 @@ class GMLCompletionProvider {
 				return monaco.languages.CompletionItemKind.Constant;
 			case 'snippet':
 				return monaco.languages.CompletionItemKind.Snippet;
+			case 'color':
+				return monaco.languages.CompletionItemKind.Color;
 			default:
 				return monaco.languages.CompletionItemKind.Text;
 		}
@@ -284,7 +286,8 @@ class GMLCompletionProvider {
 					if (assetName && typeof assetName === 'string') {
 						this.assetCompletions.push({
 							label: assetName,
-							kind: window.monaco?.languages?.CompletionItemKind?.Value || 12,
+							kind:
+								window.monaco?.languages?.CompletionItemKind?.File || 20,
 							detail: category.detail,
 							documentation: {
 								value: `${category.type} asset: ${assetName}`,
@@ -302,17 +305,25 @@ class GMLCompletionProvider {
 	updateUserSymbols(definitions) {
 		this.userSymbolCompletions = [];
 
-		const macros = Array.isArray(definitions) ? definitions : (definitions?.macros || []);
-		const enums = Array.isArray(arguments[1]) ? arguments[1] : (definitions?.enums || []);
-		const functions = Array.isArray(arguments[2]) ? arguments[2] : (definitions?.functions || []);
+		const macros = Array.isArray(definitions)
+			? definitions
+			: definitions?.macros || [];
+		const enums = Array.isArray(arguments[1])
+			? arguments[1]
+			: definitions?.enums || [];
+		const functions = Array.isArray(arguments[2])
+			? arguments[2]
+			: definitions?.functions || [];
 
-		macros.forEach(macro => {
+		macros.forEach((macro) => {
 			this.userSymbolCompletions.push({
 				label: macro.name,
 				kind: window.monaco?.languages?.CompletionItemKind?.Constant || 21,
 				detail: 'Macro',
 				documentation: {
-					value: `Macro defined in ${macro.location.assetName}${macro.location.eventName ? ` (${macro.location.eventName})` : ''}`,
+					value: `Macro defined in ${macro.location.assetName}${
+						macro.location.eventName ? ` (${macro.location.eventName})` : ''
+					}`,
 					isTrusted: true,
 				},
 				insertText: macro.name,
@@ -320,13 +331,15 @@ class GMLCompletionProvider {
 			});
 		});
 
-		enums.forEach(enumSym => {
+		enums.forEach((enumSym) => {
 			this.userSymbolCompletions.push({
 				label: enumSym.name,
-				kind: window.monaco?.languages?.CompletionItemKind?.Enum || 13,
+				kind: window.monaco?.languages?.CompletionItemKind?.Enum || 15,
 				detail: 'Enum',
 				documentation: {
-					value: `Enum defined in ${enumSym.location.assetName}${enumSym.location.eventName ? ` (${enumSym.location.eventName})` : ''}`,
+					value: `Enum defined in ${enumSym.location.assetName}${
+						enumSym.location.eventName ? ` (${enumSym.location.eventName})` : ''
+					}`,
 					isTrusted: true,
 				},
 				insertText: enumSym.name,
@@ -334,13 +347,15 @@ class GMLCompletionProvider {
 			});
 		});
 
-		functions.forEach(func => {
+		functions.forEach((func) => {
 			this.userSymbolCompletions.push({
 				label: func.name,
-				kind: window.monaco?.languages?.CompletionItemKind?.Function || 3,
+				kind: window.monaco?.languages?.CompletionItemKind?.Function || 1,
 				detail: 'Function',
 				documentation: {
-					value: `Function defined in ${func.location.assetName}${func.location.eventName ? ` (${func.location.eventName})` : ''}`,
+					value: `Function defined in ${func.location.assetName}${
+						func.location.eventName ? ` (${func.location.eventName})` : ''
+					}`,
 					isTrusted: true,
 				},
 				insertText: `${func.name}()`,
@@ -469,7 +484,12 @@ class GMLCompletionProvider {
 				range: range,
 			}));
 
-		const allSuggestions = [...validLocals, ...validUserSymbols, ...validAssets, ...validBuiltins];
+		const allSuggestions = [
+			...validLocals,
+			...validUserSymbols,
+			...validAssets,
+			...validBuiltins,
+		];
 		const seenLabels = new Set();
 		const uniqueSuggestions = allSuggestions.filter((item) => {
 			if (seenLabels.has(item.label)) {

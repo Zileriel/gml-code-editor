@@ -4,6 +4,7 @@ class GMLDefinitionsParser {
 		this.variables = new Map();
 		this.constants = new Map();
 		this.enumerations = new Map();
+
 		this.parsed = false;
 	}
 
@@ -218,7 +219,7 @@ class GMLDefinitionsParser {
 						(constant.className ? ` (${constant.className})` : ''),
 					documentation: constant.description,
 					insertText: constant.name,
-					type: 'constant',
+					type: constant.className == 'Color' ? 'color' : 'constant',
 				});
 			}
 		});
