@@ -2,15 +2,15 @@ import React, { useCallback, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { useEditorStatus } from '../contexts/EditorStatusContext';
 import { useEditor } from '../contexts/EditorContext';
-import gmlLanguage from '../../shared/gmlLanguage.js';
-import gmlTheme from '../../shared/gmlTheme.js';
-import gmlCompletionProvider from '../../shared/gmlCompletionProvider.js';
-import gmlHoverProvider from '../../shared/gmlHoverProvider.js';
-import gmlSignatureHelpProvider from '../../shared/gmlSignatureHelpProvider.js';
-import gmlColorProvider from '../../shared/gmlColorProvider.js';
-import gmlLintingProvider from '../../shared/gmlLintingProvider.js';
-import gmlCodeActionsProvider from '../../shared/gmlCodeActionsProvider.js';
-import gmlDefinitionsParser from '../../shared/gmlDefinitionsParser.js';
+import gmlLanguage from '../scripts/gmlLanguage.js';
+import gmlTheme from '../scripts/gmlTheme.js';
+import gmlCompletionProvider from '../scripts/gmlCompletionProvider.js';
+import gmlHoverProvider from '../scripts/gmlHoverProvider.js';
+import gmlSignatureHelpProvider from '../scripts/gmlSignatureHelpProvider.js';
+import gmlColorProvider from '../scripts/gmlColorProvider.js';
+import gmlLintingProvider from '../scripts/gmlLintingProvider.js';
+import gmlCodeActionsProvider from '../scripts/gmlCodeActionsProvider.js';
+import gmlDefinitionsParser from '../scripts/gmlDefinitionsParser.js';
 
 let isGmlRegisteredGlobally = false;
 
@@ -133,7 +133,6 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 				beforeMount={async (monaco) => {
 					if (!isGmlRegisteredGlobally) {
 						try {
-							// Initialize GML definitions first
 							await gmlLanguage.initialize();
 							await gmlCompletionProvider.initialize();
 							await gmlHoverProvider.initialize();
@@ -189,7 +188,6 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 						}
 					}
 
-					// Always set the theme
 					monaco.editor.setTheme('gml-theme');
 				}}
 				onMount={(editor, monaco) => {
@@ -227,8 +225,7 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 							gmlLanguage.addUserEnum(match[1]);
 						}
 
-						// Parse local variables and function parameters - we'll use a simple approach
-						// for now and add all to a global scope since Monaco doesn't track actual scope context
+						// Parse local variables and function parameters
 						const varMatches = text.matchAll(
 							/(?:var|static)\s+([a-zA-Z_][\w]*)/g
 						);
@@ -249,11 +246,9 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 									.map((p) => p.trim())
 									.filter((p) => p);
 								for (const param of params) {
-									// Remove default values if present
 									const paramName = param.split('=')[0].trim();
 									if (paramName) {
 										gmlLanguage.addFunctionParameter(functionName, paramName);
-										// Also add to global local vars for simpler highlighting
 										gmlLanguage.addLocalVariable('global', paramName);
 									}
 								}
@@ -280,16 +275,16 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 								switch (diag.severity) {
 									case 8:
 										acc.errors++;
-										break; // Monaco Error
+										break;
 									case 4:
 										acc.warnings++;
-										break; // Monaco Warning
+										break;
 									case 1:
 										acc.hints++;
-										break; // Monaco Hint
+										break;
 									default:
 										acc.info++;
-										break; // Monaco Info
+										break;
 								}
 								return acc;
 							},
@@ -314,13 +309,12 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 						model.onDidChangeContent((e) => {
 							updateVariableScope(model);
 
-							// Debounce linting to avoid too frequent updates
 							if (model._lintingTimeout) {
 								clearTimeout(model._lintingTimeout);
 							}
 							model._lintingTimeout = setTimeout(() => {
 								updateDiagnostics(model);
-							}, 300); // Reduced from 500ms to 300ms for better responsiveness
+							}, 300);
 						});
 					}
 
@@ -392,7 +386,7 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 								}
 							}
 
-							currentFunction = functionName || null; // Check if we're inside a function call for signature help display
+							currentFunction = functionName || null;
 							let functionCallInfo = null;
 							const textBeforeCursor = model.getValueInRange({
 								startLineNumber: lineNumber,
@@ -460,16 +454,16 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 									switch (marker.severity) {
 										case 8:
 											acc.errors++;
-											break; // MarkerSeverity.Error
+											break;
 										case 4:
 											acc.warnings++;
-											break; // MarkerSeverity.Warning
+											break;
 										case 1:
 											acc.hints++;
-											break; // MarkerSeverity.Hint
+											break;
 										default:
 											acc.info++;
-											break; // MarkerSeverity.Info
+											break;
 									}
 									return acc;
 								},

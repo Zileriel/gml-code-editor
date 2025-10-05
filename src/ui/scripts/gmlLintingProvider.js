@@ -26,7 +26,6 @@ class GMLLintingProvider {
 
 		this.diagnostics.set(model.uri.toString(), diagnostics);
 
-		// First pass: check individual lines for simple errors
 		for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
 			const line = lines[lineIndex];
 			const lineNumber = lineIndex + 1;
@@ -35,18 +34,15 @@ class GMLLintingProvider {
 
 			const lineWithoutStrings = this.removeStrings(line);
 
-			// Check for deprecated functions
 			diagnostics.push(
 				...this.checkDeprecatedFunctions(lineWithoutStrings, lineNumber, model)
 			);
 
-			// Check for simple line-level syntax errors
 			diagnostics.push(
 				...this.checkLineSyntaxErrors(lineWithoutStrings, lineNumber, model)
 			);
 		}
 
-		// Second pass: check multi-line syntax issues
 		const textWithoutStrings = this.removeStringsFromText(text);
 		diagnostics.push(
 			...this.checkMultiLineSyntaxErrors(textWithoutStrings, lines, model)
@@ -130,12 +126,11 @@ class GMLLintingProvider {
 	checkLineSyntaxErrors(line, lineNumber, model) {
 		const diagnostics = [];
 
-		// Check for obvious syntax mistakes that should be caught on a single line
 		// Double semicolons
 		if (line.includes(';;')) {
 			const index = line.indexOf(';;');
 			diagnostics.push({
-				severity: 4, // Monaco Warning
+				severity: 4,
 				message: 'Double semicolon found',
 				startLineNumber: lineNumber,
 				startColumn: index + 1,
@@ -160,10 +155,8 @@ class GMLLintingProvider {
 			});
 		}
 
-		// Missing semicolon at end of statement (common GML patterns)
+		// Missing semicolon
 		const trimmed = line.trim();
-
-		// Check if line has a semicolon before any comment
 		const commentIndex = line.indexOf('//');
 		const lineBeforeComment =
 			commentIndex !== -1 ? line.substring(0, commentIndex).trim() : trimmed;
@@ -186,11 +179,10 @@ class GMLLintingProvider {
 				lineBeforeComment.includes('(') ||
 				/^\w+\s*\[/.test(lineBeforeComment))
 		) {
-			// Find the position after the code but before the comment
 			const insertPosition = commentIndex !== -1 ? commentIndex : line.length;
 
 			diagnostics.push({
-				severity: 1, // Monaco Hint (suggestion)
+				severity: 1,
 				message: 'Missing semicolon',
 				startLineNumber: lineNumber,
 				startColumn: insertPosition,
@@ -208,8 +200,6 @@ class GMLLintingProvider {
 	 */
 	checkDeprecatedFunctions(line, lineNumber, model) {
 		const diagnostics = [];
-
-		// Find function calls
 		const functionMatches = line.matchAll(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g);
 
 		for (const match of functionMatches) {
@@ -221,7 +211,7 @@ class GMLLintingProvider {
 				const endColumn = startColumn + functionName.length;
 
 				diagnostics.push({
-					severity: 4, // Monaco Warning
+					severity: 4,
 					message: `Function '${functionName}' is deprecated`,
 					startLineNumber: lineNumber,
 					startColumn: startColumn,
@@ -241,7 +231,7 @@ class GMLLintingProvider {
 	checkMultiLineSyntaxErrors(text, lines, model) {
 		const diagnostics = [];
 
-		// Track bracket/brace/parenthesis balance across the entire file
+		// Track bracket/brace/parenthesis balance
 		let parenStack = [];
 		let bracketStack = [];
 		let braceStack = [];
@@ -266,7 +256,7 @@ class GMLLintingProvider {
 				case ')':
 					if (parenStack.length === 0) {
 						diagnostics.push({
-							severity: 8, // Monaco Error
+							severity: 8,
 							message: 'Unexpected closing parenthesis',
 							startLineNumber: currentLine,
 							startColumn: currentColumn,
@@ -284,7 +274,7 @@ class GMLLintingProvider {
 				case ']':
 					if (bracketStack.length === 0) {
 						diagnostics.push({
-							severity: 8, // Monaco Error
+							severity: 8,
 							message: 'Unexpected closing bracket',
 							startLineNumber: currentLine,
 							startColumn: currentColumn,
@@ -302,7 +292,7 @@ class GMLLintingProvider {
 				case '}':
 					if (braceStack.length === 0) {
 						diagnostics.push({
-							severity: 8, // Monaco Error
+							severity: 8,
 							message: 'Unexpected closing brace',
 							startLineNumber: currentLine,
 							startColumn: currentColumn,
@@ -319,10 +309,9 @@ class GMLLintingProvider {
 			currentColumn++;
 		}
 
-		// Report unclosed brackets/braces/parentheses
 		for (const paren of parenStack) {
 			diagnostics.push({
-				severity: 8, // Monaco Error
+				severity: 8,
 				message: 'Unclosed parenthesis',
 				startLineNumber: paren.line,
 				startColumn: paren.column,
@@ -334,7 +323,7 @@ class GMLLintingProvider {
 
 		for (const bracket of bracketStack) {
 			diagnostics.push({
-				severity: 8, // Monaco Error
+				severity: 8,
 				message: 'Unclosed bracket',
 				startLineNumber: bracket.line,
 				startColumn: bracket.column,
@@ -346,7 +335,7 @@ class GMLLintingProvider {
 
 		for (const brace of braceStack) {
 			diagnostics.push({
-				severity: 8, // Monaco Error
+				severity: 8,
 				message: 'Unclosed brace',
 				startLineNumber: brace.line,
 				startColumn: brace.column,

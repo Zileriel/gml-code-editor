@@ -11,13 +11,9 @@ class GMLCodeActionsProvider {
 
 	provideCodeActions(model, range, context, token) {
 		const actions = [];
-
-		// Get markers that intersect with the range
 		const markers = context.markers || [];
 
 		for (const marker of markers) {
-			// Only handle markers with our codes (no owner check needed as we control the codes)
-
 			switch (marker.code) {
 				case 'missing-semicolon':
 					actions.push({
@@ -54,7 +50,7 @@ class GMLCodeActionsProvider {
 									textEdit: {
 										range: {
 											startLineNumber: marker.startLineNumber,
-											startColumn: marker.startColumn + 1, // Keep first semicolon
+											startColumn: marker.startColumn + 1,
 											endLineNumber: marker.endLineNumber,
 											endColumn: marker.endColumn,
 										},
@@ -68,7 +64,6 @@ class GMLCodeActionsProvider {
 					break;
 
 				case 'invalid-operator':
-					// Get the invalid operator text
 					const invalidOp = model.getValueInRange({
 						startLineNumber: marker.startLineNumber,
 						startColumn: marker.startColumn,

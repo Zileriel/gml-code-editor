@@ -141,20 +141,20 @@ class GMLCompletionProvider {
 					'function ${1:functionName}(${2:parameters}) {\n\t${3:// code here}\n}',
 				insertTextRules: insertAsSnippet,
 				sortText: '0function',
-            },
-            {
-                label: 'jsdoc',
-                kind: snippetKind,
-                detail: 'JSDoc comment',
-                documentation: {
-                    value: 'Creates a JSDoc style comment block',
-                    isTrusted: true,
-                },
-                insertText:
-                    '/**\n * ${1:Description}\n * @param {${2:type}} ${3:name} - ${4:Description}\n */',
-                insertTextRules: insertAsSnippet,
-                sortText: '0jsdoc',
-            },
+			},
+			{
+				label: 'jsdoc',
+				kind: snippetKind,
+				detail: 'JSDoc comment',
+				documentation: {
+					value: 'Creates a JSDoc style comment block',
+					isTrusted: true,
+				},
+				insertText:
+					'/**\n * ${1:Description}\n * @param {${2:type}} ${3:name} - ${4:Description}\n */',
+				insertTextRules: insertAsSnippet,
+				sortText: '0jsdoc',
+			},
 		];
 	}
 

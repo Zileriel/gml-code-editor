@@ -23,7 +23,6 @@ const EditorView = () => {
 	const [isResizing, setIsResizing] = useState(false);
 	const containerRef = React.useRef(null);
 
-	// Enable horizontal scrolling with mouse wheel on tabs
 	const handleTabsWheel = useCallback((e) => {
 		e.preventDefault();
 		e.currentTarget.scrollLeft += e.deltaY;
