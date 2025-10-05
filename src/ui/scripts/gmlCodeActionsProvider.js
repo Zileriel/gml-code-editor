@@ -13,6 +13,33 @@ class GMLCodeActionsProvider {
 		const actions = [];
 		const markers = context.markers || [];
 
+		// Add go-to-definition action for user-defined symbols
+		const startPosition = {
+			lineNumber: range.startLineNumber,
+			column: range.startColumn,
+		};
+		const word = model.getWordAtPosition(startPosition);
+
+		if (word && window.definitions) {
+			const symbol = window.definitions.findDefinition(word.word);
+			if (symbol) {
+				actions.push({
+					title: `Go to definition of '${symbol.name}'`,
+					kind: 'refactor.navigate',
+					diagnostics: [],
+					isPreferred: false,
+					edit: {
+						edits: [],
+					},
+					command: {
+						id: 'gml.goToDefinition',
+						title: `Go to definition of '${symbol.name}'`,
+						arguments: [symbol],
+					},
+				});
+			}
+		}
+
 		for (const marker of markers) {
 			switch (marker.code) {
 				case 'missing-semicolon':

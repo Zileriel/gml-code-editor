@@ -241,7 +241,7 @@ async function scanGameMakerProject(projectPath) {
 		// Get sprites
 		const spritesPath = path.join(projectPath, 'sprites');
 		if (fs.existsSync(spritesPath)) {
-			projectData.assets.sprites = await getAssetNames(spritesPath);
+			projectData.assets.sprites = await scanSprites(spritesPath);
 		}
 
 		// Get tilesets
@@ -264,6 +264,33 @@ async function scanGameMakerProject(projectPath) {
 	} catch (error) {
 		console.error('Error scanning project:', error);
 	}
+
+	// Compile all definitions from scripts and objects
+	const allDefinitions = { macros: [], enums: [], functions: [] };
+
+	// Add definitions from scripts
+	if (projectData.assets.scripts) {
+		projectData.assets.scripts.forEach((script) => {
+			if (script.definitions) {
+				allDefinitions.macros.push(...script.definitions.macros);
+				allDefinitions.enums.push(...script.definitions.enums);
+				allDefinitions.functions.push(...script.definitions.functions);
+			}
+		});
+	}
+
+	// Add definitions from objects
+	if (projectData.assets.objects) {
+		projectData.assets.objects.forEach((object) => {
+			if (object.definitions) {
+				allDefinitions.macros.push(...object.definitions.macros);
+				allDefinitions.enums.push(...object.definitions.enums);
+				allDefinitions.functions.push(...object.definitions.functions);
+			}
+		});
+	}
+
+	projectData.definitions = allDefinitions;
 
 	return projectData;
 }
@@ -290,12 +317,14 @@ async function scanScripts(scriptsPath) {
 				const content = fs.readFileSync(gmlFile, 'utf8');
 				const metadataRaw = fs.readFileSync(yyFile, 'utf8');
 				const metadata = parseGameMakerJSON(metadataRaw);
+				const definitions = extractDefinitions(content, scriptDir);
 				scripts.push({
 					name: scriptDir,
 					type: 'script',
 					content,
 					metadata,
 					path: scriptPath,
+					definitions,
 				});
 			} catch (error) {
 				console.error(`Error reading script ${scriptDir}:`, error);
@@ -329,16 +358,30 @@ async function scanObjects(objectsPath) {
 
 				// Scan for event GML files
 				const events = [];
+				const allDefinitions = { macros: [], enums: [], functions: [] };
 				const files = fs.readdirSync(objectPath);
 
 				for (const file of files) {
 					if (file.endsWith('.gml') && file !== `${objectDir}.gml`) {
 						const eventPath = path.join(objectPath, file);
 						const eventContent = fs.readFileSync(eventPath, 'utf8');
+						const eventName = file.replace('.gml', '');
+						const definitions = extractDefinitions(
+							eventContent,
+							objectDir,
+							eventName
+						);
+
+						// Combine all definitions from this object
+						allDefinitions.macros.push(...definitions.macros);
+						allDefinitions.enums.push(...definitions.enums);
+						allDefinitions.functions.push(...definitions.functions);
+
 						events.push({
 							name: file,
 							content: eventContent,
 							path: eventPath,
+							definitions,
 						});
 					}
 				}
@@ -349,6 +392,7 @@ async function scanObjects(objectsPath) {
 					events,
 					metadata,
 					path: objectPath,
+					definitions: allDefinitions,
 				});
 			} catch (error) {
 				console.error(`Error reading object ${objectDir}:`, error);
@@ -397,6 +441,105 @@ async function scanNotes(notesPath) {
 
 	return notes;
 }
+
+/**
+ * Scans the sprites folder for GameMaker sprites
+ * @param {string} spritesPath - Path to the sprites folder
+ * @returns {Promise<Array>} Array of sprite objects
+ */
+async function scanSprites(spritesPath) {
+	const sprites = [];
+	const spriteDirs = fs
+		.readdirSync(spritesPath, { withFileTypes: true })
+		.filter((dirent) => dirent.isDirectory())
+		.map((dirent) => dirent.name);
+
+	for (const spriteDir of spriteDirs) {
+		const spritePath = path.join(spritesPath, spriteDir);
+		const yyFile = path.join(spritePath, `${spriteDir}.yy`);
+		const pngFile = fs.readdirSync(spritePath).find(file => file.endsWith('.png'));
+
+		sprites.push( {
+			name: spriteDir,
+			type: 'sprite',
+			path: pngFile ? path.join(spritePath, pngFile) : null,
+			yyFile,
+		});
+	}
+
+	return sprites;
+}
+
+/**
+ * Extract definitions from GML content
+ * @param {string} content - GML code content
+ * @param {string} assetName - Name of the asset (script or object)
+ * @param {string} eventName - Event name (for objects) or null
+ * @returns {Object} Object containing arrays of macros, enums, and functions
+ */
+function extractDefinitions(content, assetName, eventName = null) {
+	const definitions = {
+		macros: [],
+		enums: [],
+		functions: [],
+	};
+
+	if (!content) return definitions;
+
+	const lines = content.split('\n');
+
+	lines.forEach((line, index) => {
+		const lineNumber = index + 1;
+
+		const macroMatch = line.match(/#macro\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+		if (macroMatch) {
+			definitions.macros.push({
+				name: macroMatch[1],
+				location: {
+					file: eventName ? `${assetName}_${eventName}` : `${assetName}.gml`,
+					line: lineNumber,
+					column: line.indexOf(macroMatch[1]) + 1,
+					assetName,
+					eventName,
+				},
+				content: line.trim(),
+			});
+		}
+
+		const enumMatch = line.match(/enum\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+		if (enumMatch) {
+			definitions.enums.push({
+				name: enumMatch[1],
+				location: {
+					file: eventName ? `${assetName}_${eventName}` : `${assetName}.gml`,
+					line: lineNumber,
+					column: line.indexOf(enumMatch[1]) + 1,
+					assetName,
+					eventName,
+				},
+				content: line.trim(),
+			});
+		}
+
+		const functionMatch = line.match(/function\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+		if (functionMatch) {
+			definitions.functions.push({
+				name: functionMatch[1],
+				location: {
+					file: eventName ? `${assetName}_${eventName}` : `${assetName}.gml`,
+					line: lineNumber,
+					column: line.indexOf(functionMatch[1]) + 1,
+					assetName,
+					eventName,
+				},
+				content: line.trim(),
+			});
+		}
+	});
+
+	return definitions;
+}
+
 
 /**
  * Gets asset names from a given asset folder

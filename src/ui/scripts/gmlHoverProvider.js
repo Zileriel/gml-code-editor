@@ -28,6 +28,14 @@ class GMLHoverProvider {
 
 		const identifier = word.word;
 
+		// Check for user-defined symbols
+		if (window.definitions) {
+			const userSymbol = window.definitions.findDefinition(identifier);
+			if (userSymbol) {
+				return this.createUserSymbolHover(userSymbol);
+			}
+		}
+
 		// Check for functions
 		const func = gmlDefinitionsParser.getFunction(identifier);
 		if (func) {
@@ -167,6 +175,36 @@ class GMLHoverProvider {
 		if (constant.deprecated) {
 			contents.push({ value: '**⚠️ Deprecated**' });
 		}
+
+		return {
+			contents: contents,
+		};
+	}
+
+	createUserSymbolHover(symbol) {
+		const contents = [];
+
+		// Determine symbol type
+		let symbolType = 'Symbol';
+		if (symbol.content) {
+			if (symbol.content.startsWith('#macro')) symbolType = 'Macro';
+			else if (symbol.content.startsWith('enum')) symbolType = 'Enum';
+			else if (symbol.content.startsWith('function')) symbolType = 'Function';
+		}
+
+		// Show definition content
+		if (symbol.content) {
+			contents.push({
+				value: `\`\`\`gml\n${symbol.content}\n\`\`\``,
+				isTrusted: true,
+			});
+		}
+
+		// Add go-to-definition action hint
+		contents.push({
+			value: `*Ctrl+Click to go to definition*`,
+			isTrusted: true,
+		});
 
 		return {
 			contents: contents,

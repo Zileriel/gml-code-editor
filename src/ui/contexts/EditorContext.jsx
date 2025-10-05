@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, {
+	createContext,
+	useContext,
+	useState,
+	useCallback,
+	useEffect,
+} from 'react';
+import gmlSymbolRegistry from '../scripts/gmlSymbolRegistry.js';
 
 const EditorContext = createContext();
 
@@ -14,6 +21,50 @@ export const EditorProvider = ({ children }) => {
 	const [openTabs, setOpenTabs] = useState([]);
 	const [activeTab, setActiveTab] = useState(null);
 	const [editorInstance, setEditorInstance] = useState(null);
+	const [projectData, setProjectData] = useState(null);
+	const [pendingPosition, setPendingPosition] = useState(null);
+
+	// Listen for project loaded events
+	useEffect(() => {
+		if (window.api?.onProjectLoaded) {
+			const removeListener = window.api.onProjectLoaded((data) => {
+				setProjectData(data);
+			});
+
+			return removeListener;
+		}
+	}, []);
+
+	useEffect(() => {
+		if (editorInstance && pendingPosition && window.monaco) {
+			setTimeout(() => {
+				try {
+					const { line, column } = pendingPosition;
+					const position = new window.monaco.Position(line, column);
+					const range = new window.monaco.Range(
+						line,
+						column,
+						line,
+						column + 15
+					);
+
+					editorInstance.setSelection(range);
+					editorInstance.revealRangeInCenter(range);
+					editorInstance.focus();
+
+					setTimeout(() => {
+						if (editorInstance) {
+							editorInstance.setPosition(position);
+						}
+					}, 800);
+				} catch (error) {
+					// Suppress Monaco disposal errors
+				}
+
+				setPendingPosition(null);
+			}, 300);
+		}
+	}, [editorInstance, pendingPosition]);
 
 	const openFile = useCallback(
 		(fileInfo) => {
@@ -139,12 +190,66 @@ export const EditorProvider = ({ children }) => {
 		}
 	}, [editorInstance]);
 
+	const openFileAtLocation = useCallback(
+		(assetInfo, line, column) => {
+			const { name, type, eventName } = assetInfo;
+
+			if (window.explorerActions?.expandFolderForAsset) {
+				window.explorerActions.expandFolderForAsset(name, type);
+			}
+
+			if (!projectData) {
+				return;
+			}
+
+			let fileInfo;
+			if (type === 'script' && projectData?.assets?.scripts) {
+				const scriptAsset = projectData.assets.scripts.find(
+					(s) => s.name === name
+				);
+				if (scriptAsset) {
+					fileInfo = {
+						asset: scriptAsset,
+						content: scriptAsset.content,
+					};
+				}
+			} else if (
+				type === 'object' &&
+				eventName &&
+				projectData?.assets?.objects
+			) {
+				const objectAsset = projectData.assets.objects.find(
+					(o) => o.name === name
+				);
+				if (objectAsset) {
+					const event = objectAsset.events?.find(
+						(e) => e.name === eventName || e.name === `${eventName}.gml`
+					);
+					if (event) {
+						fileInfo = {
+							asset: objectAsset,
+							eventName: eventName,
+							content: event.content,
+						};
+					}
+				}
+			}
+
+			if (fileInfo) {
+				setPendingPosition({ line, column: column || 1 });
+				openFile(fileInfo);
+			}
+		},
+		[openFile, projectData]
+	);
+
 	const value = {
 		openTabs,
 		activeTab,
 		setActiveTab,
 		openFile,
 		openObjectFiles,
+		openFileAtLocation,
 		closeTab,
 		updateTabContent,
 		reorderTabs,

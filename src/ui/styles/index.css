@@ -836,3 +836,27 @@ main {
 	background-color: var(--color-primary);
 	color: white;
 }
+
+/* ===== Go-to-Definition Highlight ===== */
+.go-to-definition-highlight {
+	background-color: rgba(
+		255,
+		215,
+		0,
+		0.3
+	) !important; /* Gold with transparency */
+	border: 1px solid rgba(255, 215, 0, 0.6) !important;
+	border-radius: 3px !important;
+	animation: highlight-fade 2s ease-out forwards;
+}
+
+@keyframes highlight-fade {
+	0% {
+		background-color: rgba(255, 215, 0, 0.5);
+		border-color: rgba(255, 215, 0, 0.8);
+	}
+	100% {
+		background-color: rgba(255, 215, 0, 0.1);
+		border-color: rgba(255, 215, 0, 0.3);
+	}
+}

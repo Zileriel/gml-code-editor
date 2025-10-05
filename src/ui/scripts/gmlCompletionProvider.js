@@ -4,6 +4,7 @@ class GMLCompletionProvider {
 	constructor() {
 		this.completionItems = [];
 		this.assetCompletions = [];
+		this.userSymbolCompletions = [];
 	}
 
 	async initialize() {
@@ -298,6 +299,56 @@ class GMLCompletionProvider {
 		}
 	}
 
+	updateUserSymbols(definitions) {
+		this.userSymbolCompletions = [];
+
+		const macros = Array.isArray(definitions) ? definitions : (definitions?.macros || []);
+		const enums = Array.isArray(arguments[1]) ? arguments[1] : (definitions?.enums || []);
+		const functions = Array.isArray(arguments[2]) ? arguments[2] : (definitions?.functions || []);
+
+		macros.forEach(macro => {
+			this.userSymbolCompletions.push({
+				label: macro.name,
+				kind: window.monaco?.languages?.CompletionItemKind?.Constant || 21,
+				detail: 'Macro',
+				documentation: {
+					value: `Macro defined in ${macro.location.assetName}${macro.location.eventName ? ` (${macro.location.eventName})` : ''}`,
+					isTrusted: true,
+				},
+				insertText: macro.name,
+				sortText: '1' + macro.name,
+			});
+		});
+
+		enums.forEach(enumSym => {
+			this.userSymbolCompletions.push({
+				label: enumSym.name,
+				kind: window.monaco?.languages?.CompletionItemKind?.Enum || 13,
+				detail: 'Enum',
+				documentation: {
+					value: `Enum defined in ${enumSym.location.assetName}${enumSym.location.eventName ? ` (${enumSym.location.eventName})` : ''}`,
+					isTrusted: true,
+				},
+				insertText: enumSym.name,
+				sortText: '1' + enumSym.name,
+			});
+		});
+
+		functions.forEach(func => {
+			this.userSymbolCompletions.push({
+				label: func.name,
+				kind: window.monaco?.languages?.CompletionItemKind?.Function || 3,
+				detail: 'Function',
+				documentation: {
+					value: `Function defined in ${func.location.assetName}${func.location.eventName ? ` (${func.location.eventName})` : ''}`,
+					isTrusted: true,
+				},
+				insertText: `${func.name}()`,
+				sortText: '1' + func.name,
+			});
+		});
+	}
+
 	findCurrentFunction(text, offset) {
 		const beforeOffset = text.substring(0, offset);
 		const functionMatches = [
@@ -405,7 +456,20 @@ class GMLCompletionProvider {
 				range: range,
 			}));
 
-		const allSuggestions = [...validLocals, ...validAssets, ...validBuiltins];
+		const validUserSymbols = this.userSymbolCompletions
+			.filter(
+				(item) =>
+					item &&
+					item.label &&
+					typeof item.label === 'string' &&
+					item.kind !== undefined
+			)
+			.map((item) => ({
+				...item,
+				range: range,
+			}));
+
+		const allSuggestions = [...validLocals, ...validUserSymbols, ...validAssets, ...validBuiltins];
 		const seenLabels = new Set();
 		const uniqueSuggestions = allSuggestions.filter((item) => {
 			if (seenLabels.has(item.label)) {

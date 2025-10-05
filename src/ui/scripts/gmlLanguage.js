@@ -72,7 +72,45 @@ class GMLLanguageDefinition {
 			const models = window.monaco.editor.getModels();
 			models.forEach((model) => {
 				if (model.getLanguageId() === 'gml') {
-					// Force retokenization by setting language again
+					window.monaco.editor.setModelLanguage(model, 'plaintext');
+					setTimeout(() => {
+						window.monaco.editor.setModelLanguage(model, 'gml');
+					}, 50);
+				}
+			});
+		}
+	}
+
+	/**
+	 * Updates the user-defined symbols for syntax highlighting
+	 * @param {Object} definitions - Definitions object containing macros, enums, and functions arrays
+	 */
+	updateUserSymbols(definitions) {
+		this.userMacros.clear();
+		this.userEnums.clear();
+
+		// Add user-defined macros
+		if (definitions.macros) {
+			definitions.macros.forEach(macro => {
+				this.userMacros.add(macro.name);
+			});
+		}
+
+		// Add user-defined enums
+		if (definitions.enums) {
+			definitions.enums.forEach(enumDef => {
+				this.userEnums.add(enumDef.name);
+			});
+		}
+
+		// Update the tokenizer with new symbols
+		this.updateTokenizer(window.monaco);
+
+		// Force re-tokenization
+		if (window.monaco && window.monaco.editor) {
+			const models = window.monaco.editor.getModels();
+			models.forEach((model) => {
+				if (model.getLanguageId() === 'gml') {
 					window.monaco.editor.setModelLanguage(model, 'plaintext');
 					setTimeout(() => {
 						window.monaco.editor.setModelLanguage(model, 'gml');
@@ -95,6 +133,42 @@ class GMLLanguageDefinition {
 		this.userEnums.clear();
 		this.localVariables.clear();
 		this.functionParameters.clear();
+	}
+
+	/**
+	 * Updates user-defined symbols (macros, enums, functions) from project definitions
+	 * @param {Object} definitions - Definitions object containing macros, enums, and functions arrays
+	 */
+	updateUserSymbols(definitions) {
+		if (!definitions) return;
+
+		// Clear existing user symbols
+		this.userMacros.clear();
+		this.userEnums.clear();
+		
+		// Add macros
+		if (definitions.macros) {
+			definitions.macros.forEach(macro => {
+				this.userMacros.add(macro.name);
+			});
+		}
+		
+		// Add enums
+		if (definitions.enums) {
+			definitions.enums.forEach(enumDef => {
+				this.userEnums.add(enumDef.name);
+			});
+		}
+		
+		// Add functions
+		if (definitions.functions) {
+			definitions.functions.forEach(func => {
+				this.functions.add(func.name);
+			});
+		}
+		
+		// Update the tokenizer
+		this.updateTokenizer(window.monaco);
 	}
 
 	updateTokenizer(monaco) {
@@ -477,8 +551,8 @@ class GMLLanguageDefinition {
 			},
 			folding: {
 				markers: {
-					start: /^\s*\/\/#region/,
-					end: /^\s*\/\/#endregion/,
+					start: /^\s*#region/,
+					end: /^\s*#endregion/,
 				},
 			},
 		};

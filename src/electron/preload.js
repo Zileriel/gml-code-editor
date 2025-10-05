@@ -12,6 +12,11 @@ let tilesets = [];
 let fonts = [];
 let timelines = [];
 
+// Definitions
+let macros = [];
+let enums = [];
+let functions = [];
+
 contextBridge.exposeInMainWorld('api', {
 	send: (channel, data) => {
 		ipcRenderer.send(channel, data);
@@ -81,32 +86,60 @@ contextBridge.exposeInMainWorld('menu', {
 });
 
 contextBridge.exposeInMainWorld('assets', {
-	getObjects: () => objects.map(obj => obj.name),
+	getObjects: () => objects.map((obj) => obj.name),
 	getPaths: () => paths,
 	getRooms: () => rooms,
 	getSequences: () => sequences,
 	getShaders: () => shaders,
 	getSounds: () => sounds,
-	getSprites: () => sprites,
+	getSprites: () => sprites.map((s) => s.name),
 	getTilesets: () => tilesets,
 	getFonts: () => fonts,
 	getTimelines: () => timelines,
 
 	getAssets: () => ({
-		objects: objects.map(obj => obj.name),
+		objects: objects.map((obj) => obj.name),
 		paths,
 		rooms,
 		sequences,
 		shaders,
 		sounds,
-		sprites,
+		sprites: sprites.map((s) => s.name),
 		tilesets,
 		fonts,
 		timelines,
 	}),
 });
 
+contextBridge.exposeInMainWorld('definitions', {
+	getMacros: () => macros,
+	getEnums: () => enums,
+	getFunctions: () => functions,
+
+	getDefinitions: () => ({
+		macros,
+		enums,
+		functions,
+	}),
+
+	findDefinition: (symbolName) => {
+		const macro = macros.find((m) => m.name === symbolName);
+		if (macro) return macro;
+
+		const enumDef = enums.find((e) => e.name === symbolName);
+		if (enumDef) return enumDef;
+
+		const func = functions.find((f) => f.name === symbolName);
+		if (func) return func;
+
+		return null;
+	},
+});
+
 ipcRenderer.on('project:loaded', (event, projectData) => {
+	// Store project data globally for access by EditorContext
+	window.currentProjectData = projectData;
+
 	objects = projectData.assets.objects || [];
 	paths = projectData.assets.paths || [];
 	rooms = projectData.assets.rooms || [];
@@ -117,4 +150,11 @@ ipcRenderer.on('project:loaded', (event, projectData) => {
 	tilesets = projectData.assets.tilesets || [];
 	fonts = projectData.assets.fonts || [];
 	timelines = projectData.assets.timelines || [];
+
+	// Get definitions
+	if (projectData.definitions) {
+		macros = projectData.definitions.macros || [];
+		enums = projectData.definitions.enums || [];
+		functions = projectData.definitions.functions || [];
+	}
 });

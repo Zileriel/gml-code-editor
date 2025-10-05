@@ -11,6 +11,7 @@ import gmlColorProvider from '../scripts/gmlColorProvider.js';
 import gmlLintingProvider from '../scripts/gmlLintingProvider.js';
 import gmlCodeActionsProvider from '../scripts/gmlCodeActionsProvider.js';
 import gmlDefinitionsParser from '../scripts/gmlDefinitionsParser.js';
+import gmlDefinitionProvider from '../scripts/gmlDefinitionProvider.js';
 
 let isGmlRegisteredGlobally = false;
 
@@ -19,34 +20,110 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 	const containerRef = useRef(null);
 	const resizeObserverRef = useRef(null);
 	const { updateEditorStatus } = useEditorStatus();
-	const { setEditorInstance } = useEditor();
+	const { setEditorInstance, openFileAtLocation, openTabs } = useEditor();
+
+	// Suppress Monaco disposal errors
+	useEffect(() => {
+		const originalConsoleError = console.error;
+		const originalPromiseHandler = window.addEventListener;
+
+		// Override console.error to filter out Monaco disposal errors
+		console.error = (...args) => {
+			const message = args.join(' ');
+			if (message.includes('Canceled') && message.includes('async.ts')) {
+				return; // Suppress Monaco disposal errors
+			}
+			originalConsoleError.apply(console, args);
+		};
+
+		// Handle unhandled promise rejections from Monaco
+		const handleUnhandledRejection = (event) => {
+			if (
+				event.reason &&
+				event.reason.message &&
+				event.reason.message.includes('Canceled')
+			) {
+				event.preventDefault();
+				return;
+			}
+		};
+
+		window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+		return () => {
+			console.error = originalConsoleError;
+			window.removeEventListener(
+				'unhandledrejection',
+				handleUnhandledRejection
+			);
+		};
+	}, []);
 
 	useEffect(() => {
+		window.editorActions = {
+			openFile: openFileAtLocation,
+		};
+		// Also store openFileAtLocation globally for Monaco commands
+		window.openFileAtLocation = openFileAtLocation;
+
+		return () => {
+			delete window.editorActions;
+			delete window.openFileAtLocation;
+		};
+	}, [openFileAtLocation]);
+
+	useEffect(() => {
+		const handleProjectUpdate = (projectData) => {
+			if (window.assets) {
+				const assets = window.assets.getAssets();
+				gmlLanguage.updateAssets(assets);
+				gmlCompletionProvider.updateAssets(assets);
+				gmlHoverProvider.updateAssets(assets);
+			}
+
+			if (window.definitions) {
+				const definitions = window.definitions.getDefinitions();
+				gmlCompletionProvider.updateUserSymbols(definitions);
+				gmlLanguage.updateUserSymbols(definitions);
+			}
+
+			// Trigger re-linting of all open GML models
+			if (window.monaco) {
+				const models = window.monaco.editor.getModels();
+				models.forEach((model) => {
+					if (model.getLanguageId() === 'gml') {
+						const diagnostics = gmlLintingProvider.validateCode(model);
+						window.monaco.editor.setModelMarkers(model, 'gml', diagnostics);
+					}
+				});
+			}
+		};
+
+		if (!window.gmlProjectHandler) {
+			window.gmlProjectHandler = handleProjectUpdate;
+		}
+
+		const removeProjectListener = window.api?.onProjectLoaded?.(
+			window.gmlProjectHandler
+		);
+
 		const handleAssetUpdate = () => {
 			if (window.assets) {
 				const assets = window.assets.getAssets();
 				gmlLanguage.updateAssets(assets);
 				gmlCompletionProvider.updateAssets(assets);
 				gmlHoverProvider.updateAssets(assets);
-
-				// Trigger re-linting of all open GML models
-				if (window.monaco) {
-					const models = window.monaco.editor.getModels();
-					models.forEach((model) => {
-						if (model.getLanguageId() === 'gml') {
-							const diagnostics = gmlLintingProvider.validateCode(model);
-							window.monaco.editor.setModelMarkers(model, 'gml', diagnostics);
-						}
-					});
-				}
 			}
 		};
 
-		const removeProjectListener =
-			window.api?.onProjectLoaded?.(handleAssetUpdate);
-
-		if (window.assets) {
+		if (window.assets && window.gmlProjectHandler) {
 			handleAssetUpdate();
+		}
+
+		if (window.definitions && window.gmlProjectHandler) {
+			const definitions = window.definitions.getDefinitions();
+			gmlCompletionProvider.updateUserSymbols(definitions);
+			gmlLanguage.updateUserSymbols(definitions);
 		}
 
 		return () => {
@@ -222,6 +299,13 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 								gmlCodeActionsProvider
 							);
 
+							// Register definition provider
+							await gmlDefinitionProvider.initialize();
+							monaco.languages.registerDefinitionProvider(
+								'gml',
+								gmlDefinitionProvider
+							);
+
 							isGmlRegisteredGlobally = true;
 						} catch (error) {
 							console.warn('GML language registration error:', error);
@@ -234,6 +318,88 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 				onMount={(editor, monaco) => {
 					editorRef.current = editor;
 					setEditorInstance(editor);
+
+					editor.onMouseDown((e) => {
+						if (e.event.leftButton && e.event.ctrlKey) {
+							e.event.preventDefault();
+							e.event.stopPropagation();
+
+							const position = e.target.position;
+							if (position) {
+								editor.setPosition(position);
+								const model = editor.getModel();
+								const word = model.getWordAtPosition(position);
+
+								if (word && window.definitions) {
+									const symbol = window.definitions.findDefinition(word.word);
+									if (symbol) {
+										const location = symbol.location;
+										openFileAtLocation(
+											{
+												name: location.assetName,
+												type: location.eventName ? 'object' : 'script',
+												eventName: location.eventName,
+											},
+											location.line,
+											location.column
+										);
+									}
+								}
+							}
+						}
+					});
+
+					// Register go-to-definition command
+					editor.addCommand(
+						monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyD,
+						(ed) => {
+							const position = ed.getPosition();
+							const model = ed.getModel();
+							const word = model.getWordAtPosition(position);
+							if (word && window.definitions) {
+								const symbol = window.definitions.findDefinition(word.word);
+								if (symbol && window.editorActions?.openFile) {
+									const location = symbol.location;
+									window.editorActions.openFile(
+										{
+											name: location.assetName,
+											type: location.eventName ? 'object' : 'script',
+											eventName: location.eventName,
+										},
+										location.line,
+										location.column
+									);
+								}
+							}
+						}
+					);
+
+					// Register global command using Monaco's proper command registration
+					if (!window.gmlCommandRegistered) {
+						try {
+							monaco.editor.registerCommand(
+								'gml.goToDefinition',
+								(accessor, ...args) => {
+									if (args.length > 0) {
+										const symbol = args[0];
+										if (symbol && window.openFileAtLocation) {
+											const location = symbol.location;
+											window.openFileAtLocation(
+												{
+													name: location.assetName,
+													type: location.eventName ? 'object' : 'script',
+													eventName: location.eventName,
+												},
+												location.line,
+												location.column
+											);
+										}
+									}
+								}
+							);
+							window.gmlCommandRegistered = true;
+						} catch (error) {}
+					}
 
 					// Force the theme and language
 					monaco.editor.setTheme('gml-theme');
@@ -250,21 +416,6 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 						if (!model || getMonacoLanguage(language) !== 'gml') return;
 
 						const text = model.getValue();
-
-						// Clear previous user-defined identifiers
-						gmlLanguage.clearUserIdentifiers();
-
-						// Parse macros
-						const macroMatches = text.matchAll(/#macro\s+([a-zA-Z_][\w]*)/g);
-						for (const match of macroMatches) {
-							gmlLanguage.addUserMacro(match[1]);
-						}
-
-						// Parse enums
-						const enumMatches = text.matchAll(/enum\s+([a-zA-Z_][\w]*)/g);
-						for (const match of enumMatches) {
-							gmlLanguage.addUserEnum(match[1]);
-						}
 
 						// Parse local variables and function parameters
 						const varMatches = text.matchAll(

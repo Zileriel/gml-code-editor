@@ -37,6 +37,35 @@ export default function Explorer() {
 		}));
 	};
 
+	const expandFolderForAsset = (assetName, assetType) => {
+		if (!projectData) return;
+
+		const assets = projectData.assets[assetType + 's'] || [];
+		const asset = assets.find((a) => a.name === assetName);
+
+		if (
+			asset &&
+			asset.metadata?.parent?.name &&
+			asset.metadata.parent.name !== projectData.name
+		) {
+			const folderId = `${assetType}-${asset.metadata.parent.name}`;
+			setExpandedFolders((prev) => ({
+				...prev,
+				[folderId]: true,
+			}));
+		}
+	};
+
+	useEffect(() => {
+		window.explorerActions = {
+			expandFolderForAsset,
+		};
+
+		return () => {
+			delete window.explorerActions;
+		};
+	}, [projectData]);
+
 	const getAssetIcon = (type) => {
 		switch (type) {
 			case 'script':
