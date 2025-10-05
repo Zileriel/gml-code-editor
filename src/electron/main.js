@@ -103,37 +103,39 @@ function startImageServer() {
 		try {
 			res.setHeader('Content-Type', 'image/png');
 			res.setHeader('Cache-Control', 'public, max-age=3600');
-			
+
 			if (maxSize) {
 				// Use Canvas for resizing to avoid GLib errors
-				loadImage(filePath).then(image => {
-					// Calculate new dimensions maintaining aspect ratio
-					let { width, height } = image;
-					if (width > maxSize || height > maxSize) {
-						if (width > height) {
-							height = (height * maxSize) / width;
-							width = maxSize;
-						} else {
-							width = (width * maxSize) / height;
-							height = maxSize;
+				loadImage(filePath)
+					.then((image) => {
+						// Calculate new dimensions maintaining aspect ratio
+						let { width, height } = image;
+						if (width > maxSize || height > maxSize) {
+							if (width > height) {
+								height = (height * maxSize) / width;
+								width = maxSize;
+							} else {
+								width = (width * maxSize) / height;
+								height = maxSize;
+							}
 						}
-					}
-					
-					// Create canvas and draw resized image
-					const canvas = createCanvas(Math.round(width), Math.round(height));
-					const ctx = canvas.getContext('2d');
-					ctx.drawImage(image, 0, 0, Math.round(width), Math.round(height));
-					
-					// Send PNG buffer
-					const buffer = canvas.toBuffer('image/png');
-					res.end(buffer);
-				}).catch(err => {
-					console.error('Canvas processing error:', err);
-					if (!res.headersSent) {
-						res.writeHead(500);
-						res.end();
-					}
-				});
+
+						// Create canvas and draw resized image
+						const canvas = createCanvas(Math.round(width), Math.round(height));
+						const ctx = canvas.getContext('2d');
+						ctx.drawImage(image, 0, 0, Math.round(width), Math.round(height));
+
+						// Send PNG buffer
+						const buffer = canvas.toBuffer('image/png');
+						res.end(buffer);
+					})
+					.catch((err) => {
+						console.error('Canvas processing error:', err);
+						if (!res.headersSent) {
+							res.writeHead(500);
+							res.end();
+						}
+					});
 			} else {
 				// No resizing needed, serve original file
 				const stream = fs.createReadStream(filePath);
@@ -181,8 +183,7 @@ function initializeApp() {
 		process.env.GLIB_MESSAGES_DEBUG = '';
 		process.env.G_SLICE = 'always-malloc';
 		process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
-		
-		// Suppress specific GObject warnings
+
 		process.env.G_DEBUG = '';
 	}
 
@@ -404,7 +405,7 @@ async function scanGameMakerProject(projectPath) {
 	}
 
 	// Compile all definitions from scripts and objects
-	const allDefinitions = { macros: [], enums: [], functions: [] };
+	const allDefinitions = { macros: [], enums: [], functions: [], globals: [], globalvars: [] };
 
 	// Add definitions from scripts
 	if (projectData.assets.scripts) {
@@ -413,6 +414,8 @@ async function scanGameMakerProject(projectPath) {
 				allDefinitions.macros.push(...script.definitions.macros);
 				allDefinitions.enums.push(...script.definitions.enums);
 				allDefinitions.functions.push(...script.definitions.functions);
+				allDefinitions.globals.push(...script.definitions.globals);
+				allDefinitions.globalvars.push(...script.definitions.globalvars);
 			}
 		});
 	}
@@ -424,6 +427,8 @@ async function scanGameMakerProject(projectPath) {
 				allDefinitions.macros.push(...object.definitions.macros);
 				allDefinitions.enums.push(...object.definitions.enums);
 				allDefinitions.functions.push(...object.definitions.functions);
+				allDefinitions.globals.push(...object.definitions.globals);
+				allDefinitions.globalvars.push(...object.definitions.globalvars);
 			}
 		});
 	}
@@ -496,7 +501,7 @@ async function scanObjects(objectsPath) {
 
 				// Scan for event GML files
 				const events = [];
-				const allDefinitions = { macros: [], enums: [], functions: [] };
+				const allDefinitions = { macros: [], enums: [], functions: [], globals: [], globalvars: [] };
 				const files = fs.readdirSync(objectPath);
 
 				for (const file of files) {
@@ -514,6 +519,8 @@ async function scanObjects(objectsPath) {
 						allDefinitions.macros.push(...definitions.macros);
 						allDefinitions.enums.push(...definitions.enums);
 						allDefinitions.functions.push(...definitions.functions);
+						allDefinitions.globals.push(...definitions.globals);
+						allDefinitions.globalvars.push(...definitions.globalvars);
 
 						events.push({
 							name: file,
@@ -632,6 +639,8 @@ function extractDefinitions(content, assetName, eventName = null) {
 		macros: [],
 		enums: [],
 		functions: [],
+		globals: [],
+		globalvars: [],
 	};
 
 	if (!content) return definitions;
@@ -683,6 +692,42 @@ function extractDefinitions(content, assetName, eventName = null) {
 					eventName,
 				},
 				content: line.trim(),
+			});
+		}
+
+		const globalMatch = line.match(/global\.([a-zA-Z_][a-zA-Z0-9_]*)\s*=/);
+		if (globalMatch) {
+			definitions.globals.push({
+				name: globalMatch[1],
+				location: {
+					file: eventName ? `${assetName}_${eventName}` : `${assetName}.gml`,
+					line: lineNumber,
+					column: line.indexOf(globalMatch[1]) + 1,
+					assetName,
+					eventName,
+				},
+				content: line.trim(),
+			});
+		}
+
+		// Handle globalvar declarations (can be multiple in one line)
+		const globalvarMatch = line.match(/globalvar\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*)/);
+		if (globalvarMatch) {
+			const varNames = globalvarMatch[1].split(',').map(name => name.trim());
+			varNames.forEach(varName => {
+				if (varName && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(varName)) {
+					definitions.globalvars.push({
+						name: varName,
+						location: {
+							file: eventName ? `${assetName}_${eventName}` : `${assetName}.gml`,
+							line: lineNumber,
+							column: line.indexOf(varName) + 1,
+							assetName,
+							eventName,
+						},
+						content: line.trim(),
+					});
+				}
 			});
 		}
 	});

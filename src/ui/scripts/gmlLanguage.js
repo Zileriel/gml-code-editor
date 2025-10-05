@@ -6,6 +6,8 @@ class GMLLanguageDefinition {
 		this.functions = new Set();
 		this.variables = new Set();
 		this.constants = new Set();
+		this.globals = new Set();
+		this.globalvars = new Set();
 
 		this.userMacros = new Set();
 		this.userEnums = new Set();
@@ -68,58 +70,6 @@ class GMLLanguageDefinition {
 		}
 		// Update the tokenizer with new assets
 		this.updateTokenizer(window.monaco);
-
-		// Force re-tokenization by triggering a model update
-		if (window.monaco && window.monaco.editor) {
-			const models = window.monaco.editor.getModels();
-			models.forEach((model) => {
-				if (model.getLanguageId() === 'gml') {
-					window.monaco.editor.setModelLanguage(model, 'plaintext');
-					setTimeout(() => {
-						window.monaco.editor.setModelLanguage(model, 'gml');
-					}, 50);
-				}
-			});
-		}
-	}
-
-	/**
-	 * Updates the user-defined symbols for syntax highlighting
-	 * @param {Object} definitions - Definitions object containing macros, enums, and functions arrays
-	 */
-	updateUserSymbols(definitions) {
-		this.userMacros.clear();
-		this.userEnums.clear();
-
-		// Add user-defined macros
-		if (definitions.macros) {
-			definitions.macros.forEach((macro) => {
-				this.userMacros.add(macro.name);
-			});
-		}
-
-		// Add user-defined enums
-		if (definitions.enums) {
-			definitions.enums.forEach((enumDef) => {
-				this.userEnums.add(enumDef.name);
-			});
-		}
-
-		// Update the tokenizer with new symbols
-		this.updateTokenizer(window.monaco);
-
-		// Force re-tokenization
-		if (window.monaco && window.monaco.editor) {
-			const models = window.monaco.editor.getModels();
-			models.forEach((model) => {
-				if (model.getLanguageId() === 'gml') {
-					window.monaco.editor.setModelLanguage(model, 'plaintext');
-					setTimeout(() => {
-						window.monaco.editor.setModelLanguage(model, 'gml');
-					}, 50);
-				}
-			});
-		}
 	}
 
 	isUserMacro(name) {
@@ -147,6 +97,10 @@ class GMLLanguageDefinition {
 		// Clear existing user symbols
 		this.userMacros.clear();
 		this.userEnums.clear();
+		this.localVariables.clear();
+		this.functionParameters.clear();
+		this.globals.clear();
+		this.globalvars.clear();
 
 		// Add macros
 		if (definitions.macros) {
@@ -166,6 +120,20 @@ class GMLLanguageDefinition {
 		if (definitions.functions) {
 			definitions.functions.forEach((func) => {
 				this.functions.add(func.name);
+			});
+		}
+
+		// Add globals
+		if (definitions.globals) {
+			definitions.globals.forEach((global) => {
+				this.globals.add(global.name);
+			});
+		}
+
+		// Add globalvars
+		if (definitions.globalvars) {
+			definitions.globalvars.forEach((globalvar) => {
+				this.globalvars.add(globalvar.name);
 			});
 		}
 
@@ -209,6 +177,11 @@ class GMLLanguageDefinition {
 		const userMacros = Array.from(this.userMacros);
 		const userEnums = Array.from(this.userEnums);
 		const assetNames = Array.from(this.assetNames);
+		const userGlobals = Array.from(this.globals);
+		const userGlobalvars = Array.from(this.globalvars);
+		const userFunctions = Array.from(this.functions).filter(name => 
+			!builtinFunctions.includes(name)
+		);
 
 		const userLocalVars = [];
 		for (const scopeVars of this.localVariables.values()) {
@@ -280,6 +253,9 @@ class GMLLanguageDefinition {
 			userMacros: userMacros,
 			userEnums: userEnums,
 			userLocalVars: userLocalVars,
+			userGlobals: userGlobals,
+			userGlobalvars: userGlobalvars,
+			userFunctions: userFunctions,
 			assetNames: assetNames,
 
 			operators: [
@@ -373,17 +349,41 @@ class GMLLanguageDefinition {
 					// Global variable declarations
 					[
 						/(globalvar)(\s+)([a-zA-Z_][\w]*)/,
-						['keyword', 'white', 'variable.global'],
+						['keyword', 'white', 'atom'],
 					],
 					[
 						/(global)(\.)([a-zA-Z_][\w]*)/,
-						['keyword', 'delimiter', 'variable.global'],
+						['atom', 'atom', 'atom'],
 					],
 
 					// Enum member access
 					[
 						/([A-Z][a-zA-Z0-9_]*)(\.)([a-zA-Z_][\w]*)/,
 						['atom', 'delimiter', 'atom'],
+					],
+
+					// Global variable assignments (simplified for debugging)
+					[
+						/([a-zA-Z_][\w]*)\s*=/,
+						{
+							cases: {
+								'@userGlobalvars': 'atom',
+								'@userGlobals': 'atom',
+								'@default': 'identifier',
+							},
+						},
+					],
+
+					// Function calls (check before general identifiers)
+					[
+						/([a-zA-Z_][\w]*)\s*(?=\()/,
+						{
+							cases: {
+								'@builtinFunctions': 'function.builtin',
+								'@userFunctions': 'function.call',
+								'@default': 'function.call',
+							},
+						},
 					],
 
 					// Identifiers and keywords
@@ -399,19 +399,10 @@ class GMLLanguageDefinition {
 								'@userMacros': 'atom',
 								'@userEnums': 'atom',
 								'@assetNames': 'atom',
+								'@userGlobals': 'atom',
+								'@userGlobalvars': 'atom',
 								'@userLocalVars': 'variable.local',
 								'@default': 'identifier',
-							},
-						},
-					],
-
-					// Function calls
-					[
-						/([a-zA-Z_][\w]*)\s*(?=\()/,
-						{
-							cases: {
-								'@builtinFunctions': 'function.builtin',
-								'@default': 'function.call',
 							},
 						},
 					],
@@ -511,6 +502,8 @@ class GMLLanguageDefinition {
 					[/\/\*/, 'comment', '@comment'],
 					[/\}/, { token: '@brackets', next: '@pop' }],
 				],
+
+
 
 				whitespace: [
 					[/[ \t\r\n]+/, 'white'],

@@ -239,7 +239,6 @@ class GMLHoverProvider {
 		contents.push({ value: signature });
 
 		if (assetType === 'Sprite' && spriteObject?.path) {
-			// Add size parameter for server-side resizing
 			const resizedUrl = `${spriteObject.path}?size=128`;
 			contents.push({
 				value: `![Sprite Preview](${resizedUrl} "Sprite: ${assetName}")`,

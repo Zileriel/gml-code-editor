@@ -16,6 +16,8 @@ let timelines = [];
 let macros = [];
 let enums = [];
 let functions = [];
+let globals = [];
+let globalvars = [];
 
 contextBridge.exposeInMainWorld('api', {
 	send: (channel, data) => {
@@ -115,11 +117,15 @@ contextBridge.exposeInMainWorld('definitions', {
 	getMacros: () => macros,
 	getEnums: () => enums,
 	getFunctions: () => functions,
+	getGlobals: () => globals,
+	getGlobalVars: () => globalvars,
 
 	getDefinitions: () => ({
 		macros,
 		enums,
 		functions,
+		globals,
+		globalvars,
 	}),
 
 	findDefinition: (symbolName) => {
@@ -132,14 +138,79 @@ contextBridge.exposeInMainWorld('definitions', {
 		const func = functions.find((f) => f.name === symbolName);
 		if (func) return func;
 
+		const global = globals.find((g) => g.name === symbolName);
+		if (global) return global;
+
+		const globalvar = globalvars.find((gv) => gv.name === symbolName);
+		if (globalvar) return globalvar;
+
 		return null;
+	},
+
+	// Add symbol to definitions
+	addSymbol: (symbolType, symbol) => {
+		let targetArray;
+		switch (symbolType) {
+			case 'macros':
+				targetArray = macros;
+				break;
+			case 'enums':
+				targetArray = enums;
+				break;
+			case 'functions':
+				targetArray = functions;
+				break;
+			case 'globals':
+				targetArray = globals;
+				break;
+			case 'globalvars':
+				targetArray = globalvars;
+				break;
+			default:
+				return;
+		}
+
+		// Check if symbol already exists
+		const exists = targetArray.find(s => s.name === symbol.name);
+		if (!exists) {
+			targetArray.push(symbol);
+		}
+	},
+
+	// Remove symbol from definitions
+	removeSymbol: (symbolType, symbolName) => {
+		let targetArray;
+		switch (symbolType) {
+			case 'macros':
+				targetArray = macros;
+				break;
+			case 'enums':
+				targetArray = enums;
+				break;
+			case 'functions':
+				targetArray = functions;
+				break;
+			case 'globals':
+				targetArray = globals;
+				break;
+			case 'globalvars':
+				targetArray = globalvars;
+				break;
+			default:
+				return;
+		}
+
+		const index = targetArray.findIndex(s => s.name === symbolName);
+		if (index !== -1) {
+			targetArray.splice(index, 1);
+		}
 	},
 });
 
 ipcRenderer.on('project:loaded', (event, projectData) => {
-	// Store project data globally for access by EditorContext
 	window.currentProjectData = projectData;
 
+	// Get assets
 	objects = projectData.assets.objects || [];
 	paths = projectData.assets.paths || [];
 	rooms = projectData.assets.rooms || [];
@@ -156,5 +227,7 @@ ipcRenderer.on('project:loaded', (event, projectData) => {
 		macros = projectData.definitions.macros || [];
 		enums = projectData.definitions.enums || [];
 		functions = projectData.definitions.functions || [];
+		globals = projectData.definitions.globals || [];
+		globalvars = projectData.definitions.globalvars || [];
 	}
 });

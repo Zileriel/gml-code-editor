@@ -184,13 +184,194 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 		}
 	}, [language]);
 
+	// Initialize global file symbol storage
+	useEffect(() => {
+		if (!window.gmlFileSymbols) {
+			window.gmlFileSymbols = new Map();
+		}
+	}, []);
+
+	// Track current file symbols
+	const debouncedUpdateSymbols = useRef();
+
+	// Extract symbols from GML content
+	const extractSymbols = useCallback((content) => {
+		if (!content || typeof content !== 'string') return null;
+
+		const symbols = { macros: [], enums: [], functions: [], globals: [], globalvars: [] };
+
+		// Extract macros
+		const macroMatches = content.match(/#macro\s+([a-zA-Z_][a-zA-Z0-9_]*)/g);
+		if (macroMatches) {
+			macroMatches.forEach(match => {
+				const nameMatch = match.match(/#macro\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+				if (nameMatch) {
+					symbols.macros.push({ name: nameMatch[1], type: 'macro' });
+				}
+			});
+		}
+
+		// Extract enums
+		const enumMatches = content.match(/enum\s+([a-zA-Z_][a-zA-Z0-9_]*)/g);
+		if (enumMatches) {
+			enumMatches.forEach(match => {
+				const nameMatch = match.match(/enum\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+				if (nameMatch) {
+					symbols.enums.push({ name: nameMatch[1], type: 'enum' });
+				}
+			});
+		}
+
+		// Extract functions
+		const functionMatches = content.match(/function\s+([a-zA-Z_][a-zA-Z0-9_]*)/g);
+		if (functionMatches) {
+			functionMatches.forEach(match => {
+				const nameMatch = match.match(/function\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+				if (nameMatch) {
+					symbols.functions.push({ name: nameMatch[1], type: 'function' });
+				}
+			});
+		}
+
+		// Extract globals
+		const globalMatches = content.match(/global\.([a-zA-Z_][a-zA-Z0-9_]*)/g);
+		if (globalMatches) {
+			const uniqueGlobals = new Set();
+			globalMatches.forEach(match => {
+				const nameMatch = match.match(/global\.([a-zA-Z_][a-zA-Z0-9_]*)/);
+				if (nameMatch) {
+					uniqueGlobals.add(nameMatch[1]);
+				}
+			});
+			uniqueGlobals.forEach(name => {
+				symbols.globals.push({ name, type: 'global' });
+			});
+		}
+
+		// Extract globalvars
+		const globalvarMatches = content.match(/globalvar\s+([^;]+);/g);
+		if (globalvarMatches) {
+			globalvarMatches.forEach(match => {
+				const varMatch = match.match(/globalvar\s+([^;]+)/);
+				if (varMatch) {
+					const vars = varMatch[1].split(',').map(v => v.trim());
+					vars.forEach(varName => {
+						if (varName && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(varName)) {
+							symbols.globalvars.push({ name: varName, type: 'globalvar' });
+						}
+					});
+				}
+			});
+		}
+
+		return symbols;
+	}, []);
+
+	// Update symbols using preload.js methods
+	const updateSymbols = useCallback((content) => {
+		if (!content || !window.definitions || !tabId) return;
+
+		const newSymbols = extractSymbols(content);
+		if (!newSymbols) return;
+
+		let symbolsChanged = false;
+		const oldFileSymbols = window.gmlFileSymbols.get(tabId) || { macros: [], enums: [], functions: [], globals: [], globalvars: [] };
+
+		// Compare and update each symbol type
+		Object.keys(newSymbols).forEach(symbolType => {
+			const oldSymbols = oldFileSymbols[symbolType] || [];
+			const newSymbolsForType = newSymbols[symbolType];
+
+			// Remove old symbols no longer present
+			oldSymbols.forEach(oldSymbol => {
+				const stillExists = newSymbolsForType.find(newSymbol => newSymbol.name === oldSymbol.name);
+				if (!stillExists) {
+					window.definitions.removeSymbol(symbolType, oldSymbol.name);
+					symbolsChanged = true;
+				}
+			});
+
+			// Add new symbols
+			newSymbolsForType.forEach(newSymbol => {
+				const alreadyExists = oldSymbols.find(oldSymbol => oldSymbol.name === newSymbol.name);
+				if (!alreadyExists) {
+					window.definitions.addSymbol(symbolType, newSymbol);
+					symbolsChanged = true;
+				}
+			});
+		});
+
+		// Store symbols for this file
+		window.gmlFileSymbols.set(tabId, newSymbols);
+
+		// Update providers if symbols changed
+		if (symbolsChanged) {
+			setTimeout(() => {
+				if (window.monaco && window.monaco.languages) {
+					const allDefinitions = window.definitions.getDefinitions();
+					
+					if (window.gmlCompletionProvider) {
+						window.gmlCompletionProvider.updateUserSymbols(allDefinitions);
+					}
+					if (window.gmlLanguage) {
+						window.gmlLanguage.updateUserSymbols(allDefinitions);
+					}
+				}
+			}, 100);
+		}
+	}, [extractSymbols, tabId]);
+
+	// Update symbols when content changes
+	useEffect(() => {
+		if (content && language === 'gml') {
+			updateSymbols(content);
+		}
+	}, [content, language, updateSymbols]);
+
+	// Update providers when file loads
+	useEffect(() => {
+		if (language === 'gml' && window.definitions) {
+			setTimeout(() => {
+				if (window.monaco && window.monaco.languages) {
+					const allDefinitions = window.definitions.getDefinitions();
+					
+					if (window.gmlCompletionProvider) {
+						window.gmlCompletionProvider.updateUserSymbols(allDefinitions);
+					}
+					if (window.gmlLanguage) {
+						window.gmlLanguage.updateUserSymbols(allDefinitions);
+					}
+				}
+			}, 200);
+		}
+	}, [language, tabId]);
+
+	// Cleanup debounced timeout on unmount
+	useEffect(() => {
+		return () => {
+			if (debouncedUpdateSymbols.current) {
+				clearTimeout(debouncedUpdateSymbols.current);
+			}
+		};
+	}, []);
+
 	const handleEditorChange = useCallback(
 		(value) => {
 			if (onContentChange) {
 				onContentChange(tabId, value);
 			}
+
+			// Update symbols for GML files
+			if (language === 'gml' && value) {
+				if (debouncedUpdateSymbols.current) {
+					clearTimeout(debouncedUpdateSymbols.current);
+				}
+				debouncedUpdateSymbols.current = setTimeout(() => {
+					updateSymbols(value);
+				}, 300);
+			}
 		},
-		[tabId, onContentChange]
+		[tabId, onContentChange, language, updateSymbols]
 	);
 
 	const editorOptions = {
@@ -284,6 +465,10 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 
 							// Register hover provider
 							monaco.languages.registerHoverProvider('gml', gmlHoverProvider);
+
+							// Store providers on window for symbol updates
+							window.gmlCompletionProvider = gmlCompletionProvider;
+							window.gmlLanguage = gmlLanguage;
 
 							// Register signature help provider
 							monaco.languages.registerSignatureHelpProvider(

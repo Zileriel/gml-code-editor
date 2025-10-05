@@ -313,22 +313,30 @@ class GMLCompletionProvider {
 		const macros = Array.isArray(definitions)
 			? definitions
 			: definitions?.macros || [];
-		const enums = Array.isArray(arguments[1])
-			? arguments[1]
+		const enums = Array.isArray(definitions)
+			? (arguments[1] || [])
 			: definitions?.enums || [];
-		const functions = Array.isArray(arguments[2])
-			? arguments[2]
+		const functions = Array.isArray(definitions)
+			? (arguments[2] || [])
 			: definitions?.functions || [];
+		const globals = Array.isArray(definitions)
+			? (arguments[3] || [])
+			: definitions?.globals || [];
+		const globalvars = Array.isArray(definitions)
+			? (arguments[4] || [])
+			: definitions?.globalvars || [];
 
 		macros.forEach((macro) => {
+			const location = macro.location?.assetName 
+				? `${macro.location.assetName}${macro.location.eventName ? ` (${macro.location.eventName})` : ''}`
+				: `${macro.location?.file || 'unknown'}:${macro.location?.line || 0}`;
+			
 			this.userSymbolCompletions.push({
 				label: macro.name,
 				kind: window.monaco?.languages?.CompletionItemKind?.Constant || 21,
 				detail: 'Macro',
 				documentation: {
-					value: `Macro defined in ${macro.location.assetName}${
-						macro.location.eventName ? ` (${macro.location.eventName})` : ''
-					}`,
+					value: `Macro defined in ${location}`,
 					isTrusted: true,
 				},
 				insertText: macro.name,
@@ -337,14 +345,16 @@ class GMLCompletionProvider {
 		});
 
 		enums.forEach((enumSym) => {
+			const location = enumSym.location?.assetName 
+				? `${enumSym.location.assetName}${enumSym.location.eventName ? ` (${enumSym.location.eventName})` : ''}`
+				: `${enumSym.location?.file || 'unknown'}:${enumSym.location?.line || 0}`;
+			
 			this.userSymbolCompletions.push({
 				label: enumSym.name,
 				kind: window.monaco?.languages?.CompletionItemKind?.Enum || 15,
 				detail: 'Enum',
 				documentation: {
-					value: `Enum defined in ${enumSym.location.assetName}${
-						enumSym.location.eventName ? ` (${enumSym.location.eventName})` : ''
-					}`,
+					value: `Enum defined in ${location}`,
 					isTrusted: true,
 				},
 				insertText: enumSym.name,
@@ -353,18 +363,56 @@ class GMLCompletionProvider {
 		});
 
 		functions.forEach((func) => {
+			const location = func.location?.assetName 
+				? `${func.location.assetName}${func.location.eventName ? ` (${func.location.eventName})` : ''}`
+				: `${func.location?.file || 'unknown'}:${func.location?.line || 0}`;
+			
 			this.userSymbolCompletions.push({
 				label: func.name,
 				kind: window.monaco?.languages?.CompletionItemKind?.Function || 1,
 				detail: 'Function',
 				documentation: {
-					value: `Function defined in ${func.location.assetName}${
-						func.location.eventName ? ` (${func.location.eventName})` : ''
-					}`,
+					value: `Function defined in ${location}`,
 					isTrusted: true,
 				},
 				insertText: `${func.name}()`,
 				sortText: '1' + func.name,
+			});
+		});
+
+		globals.forEach((global) => {
+			const location = global.location?.assetName 
+				? `${global.location.assetName}${global.location.eventName ? ` (${global.location.eventName})` : ''}`
+				: `${global.location?.file || 'unknown'}:${global.location?.line || 0}`;
+			
+			this.userSymbolCompletions.push({
+				label: global.name,
+				kind: window.monaco?.languages?.CompletionItemKind?.Variable || 4,
+				detail: 'Global Variable',
+				documentation: {
+					value: `Global variable defined in ${location}`,
+					isTrusted: true,
+				},
+				insertText: global.name,
+				sortText: '1' + global.name,
+			});
+		});
+
+		globalvars.forEach((globalvar) => {
+			const location = globalvar.location?.assetName 
+				? `${globalvar.location.assetName}${globalvar.location.eventName ? ` (${globalvar.location.eventName})` : ''}`
+				: `${globalvar.location?.file || 'unknown'}:${globalvar.location?.line || 0}`;
+			
+			this.userSymbolCompletions.push({
+				label: globalvar.name,
+				kind: window.monaco?.languages?.CompletionItemKind?.Variable || 4,
+				detail: 'Global Variable',
+				documentation: {
+					value: `Global variable defined in ${location}`,
+					isTrusted: true,
+				},
+				insertText: globalvar.name,
+				sortText: '1' + globalvar.name,
 			});
 		});
 	}
