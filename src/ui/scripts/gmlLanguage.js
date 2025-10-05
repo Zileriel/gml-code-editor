@@ -420,8 +420,9 @@ class GMLLanguageDefinition {
 					// Numbers
 					[/\d*\.\d+([eE][\-+]?\d+)?/, 'number.float'],
 					[/0[xX][0-9a-fA-F]+/, 'number.hex'],
-					[/\d+/, 'number'],
+					[/#[0-9a-fA-F]+/, 'number.hex'],
 					[/\$[0-9a-fA-F]+/, 'number.hex'],
+					[/\d+/, 'number'],
 
 					// Delimiter: after number because of .\d floats
 					[/[;,.]/, 'delimiter'],
