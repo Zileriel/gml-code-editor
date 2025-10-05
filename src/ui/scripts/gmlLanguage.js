@@ -47,7 +47,9 @@ class GMLLanguageDefinition {
 		if (assets) {
 			const allAssets = [
 				...(assets.objects || []),
-				...(assets.sprites || []),
+				...(assets.sprites || []).map((sprite) =>
+					typeof sprite === 'object' ? sprite.name : sprite
+				),
 				...(assets.sounds || []),
 				...(assets.paths || []),
 				...(assets.rooms || []),
@@ -91,14 +93,14 @@ class GMLLanguageDefinition {
 
 		// Add user-defined macros
 		if (definitions.macros) {
-			definitions.macros.forEach(macro => {
+			definitions.macros.forEach((macro) => {
 				this.userMacros.add(macro.name);
 			});
 		}
 
 		// Add user-defined enums
 		if (definitions.enums) {
-			definitions.enums.forEach(enumDef => {
+			definitions.enums.forEach((enumDef) => {
 				this.userEnums.add(enumDef.name);
 			});
 		}
@@ -145,28 +147,28 @@ class GMLLanguageDefinition {
 		// Clear existing user symbols
 		this.userMacros.clear();
 		this.userEnums.clear();
-		
+
 		// Add macros
 		if (definitions.macros) {
-			definitions.macros.forEach(macro => {
+			definitions.macros.forEach((macro) => {
 				this.userMacros.add(macro.name);
 			});
 		}
-		
+
 		// Add enums
 		if (definitions.enums) {
-			definitions.enums.forEach(enumDef => {
+			definitions.enums.forEach((enumDef) => {
 				this.userEnums.add(enumDef.name);
 			});
 		}
-		
+
 		// Add functions
 		if (definitions.functions) {
-			definitions.functions.forEach(func => {
+			definitions.functions.forEach((func) => {
 				this.functions.add(func.name);
 			});
 		}
-		
+
 		// Update the tokenizer
 		this.updateTokenizer(window.monaco);
 	}

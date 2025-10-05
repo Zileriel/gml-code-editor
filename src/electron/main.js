@@ -1,5 +1,7 @@
 import { app, BrowserWindow, ipcMain, nativeImage, dialog } from 'electron';
 import Store from 'electron-store';
+import http from 'http';
+import { createCanvas, loadImage } from 'canvas';
 
 // Node.js modules
 import path from 'path';
@@ -20,6 +22,11 @@ const ICON_PATH = path.join(APP_PATH, 'icon.png');
 let mainWindow = null;
 const store = new Store();
 
+// HTTP server for images
+let imageServer = null;
+const IMAGE_PORT = 8080;
+const spriteFiles = new Map();
+
 //#region Application Core
 
 /**
@@ -33,7 +40,7 @@ const createWindow = () => {
 		icon: ICON_PATH,
 		webPreferences: {
 			preload: path.join(APP_PATH, 'src', 'electron', 'preload.js'),
-			webSecurity: !IS_DEVELOPMENT,
+			webSecurity: false,
 		},
 	});
 
@@ -48,12 +55,138 @@ const createWindow = () => {
 
 //#endregion
 
+//#region Simple Image Server
+
+function startImageServer() {
+	if (imageServer) return;
+
+	imageServer = http.createServer((req, res) => {
+		res.setHeader('Access-Control-Allow-Origin', '*');
+		res.setHeader('Access-Control-Allow-Methods', 'GET');
+
+		if (req.method !== 'GET') {
+			res.writeHead(405);
+			res.end();
+			return;
+		}
+
+		// Parse URL and size parameter
+		const urlParts = req.url.split('?');
+		const match = urlParts[0].match(/^\/sprite\/(.+)$/);
+		if (!match) {
+			res.writeHead(404);
+			res.end();
+			return;
+		}
+
+		const spriteName = match[1];
+		const filePath = spriteFiles.get(spriteName);
+
+		let maxSize = null;
+		if (urlParts[1]) {
+			const params = new URLSearchParams(urlParts[1]);
+			const sizeParam = params.get('size');
+			if (sizeParam) {
+				maxSize = parseInt(sizeParam, 10);
+				if (isNaN(maxSize) || maxSize <= 0 || maxSize > 512) {
+					maxSize = null;
+				}
+			}
+		}
+
+		if (!filePath || !fs.existsSync(filePath)) {
+			res.writeHead(404);
+			res.end();
+			return;
+		}
+
+		try {
+			res.setHeader('Content-Type', 'image/png');
+			res.setHeader('Cache-Control', 'public, max-age=3600');
+			
+			if (maxSize) {
+				// Use Canvas for resizing to avoid GLib errors
+				loadImage(filePath).then(image => {
+					// Calculate new dimensions maintaining aspect ratio
+					let { width, height } = image;
+					if (width > maxSize || height > maxSize) {
+						if (width > height) {
+							height = (height * maxSize) / width;
+							width = maxSize;
+						} else {
+							width = (width * maxSize) / height;
+							height = maxSize;
+						}
+					}
+					
+					// Create canvas and draw resized image
+					const canvas = createCanvas(Math.round(width), Math.round(height));
+					const ctx = canvas.getContext('2d');
+					ctx.drawImage(image, 0, 0, Math.round(width), Math.round(height));
+					
+					// Send PNG buffer
+					const buffer = canvas.toBuffer('image/png');
+					res.end(buffer);
+				}).catch(err => {
+					console.error('Canvas processing error:', err);
+					if (!res.headersSent) {
+						res.writeHead(500);
+						res.end();
+					}
+				});
+			} else {
+				// No resizing needed, serve original file
+				const stream = fs.createReadStream(filePath);
+				stream.pipe(res);
+				stream.on('error', () => {
+					if (!res.headersSent) {
+						res.writeHead(500);
+						res.end();
+					}
+				});
+			}
+		} catch (error) {
+			console.error('Error processing image:', error);
+			if (!res.headersSent) {
+				res.writeHead(500);
+				res.end();
+			}
+		}
+	});
+
+	imageServer.listen(IMAGE_PORT, 'localhost', () => {
+		console.log(`Image server running on http://localhost:${IMAGE_PORT}`);
+	});
+}
+
+function stopImageServer() {
+	if (imageServer) {
+		imageServer.close();
+		imageServer = null;
+		spriteFiles.clear();
+	}
+}
+
+//#endregion
+
 //#region Application Initialization
 
 /**
  * Initializes the application when ready
  */
 function initializeApp() {
+	// Set environment variables to suppress GLib warnings
+	if (process.platform === 'linux') {
+		process.env.G_MESSAGES_DEBUG = '';
+		process.env.GLIB_MESSAGES_DEBUG = '';
+		process.env.G_SLICE = 'always-malloc';
+		process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
+		
+		// Suppress specific GObject warnings
+		process.env.G_DEBUG = '';
+	}
+
+	startImageServer();
 	createWindow();
 
 	if (IS_DEVELOPMENT) {
@@ -89,8 +222,13 @@ app.whenReady().then(initializeApp);
  */
 app.on('window-all-closed', () => {
 	if (process.platform !== 'darwin') {
+		stopImageServer();
 		app.quit();
 	}
+});
+
+app.on('before-quit', () => {
+	stopImageServer();
 });
 //#endregion
 
@@ -457,12 +595,24 @@ async function scanSprites(spritesPath) {
 	for (const spriteDir of spriteDirs) {
 		const spritePath = path.join(spritesPath, spriteDir);
 		const yyFile = path.join(spritePath, `${spriteDir}.yy`);
-		const pngFile = fs.readdirSync(spritePath).find(file => file.endsWith('.png'));
+		const pngFile = fs
+			.readdirSync(spritePath)
+			.find((file) => file.endsWith('.png'));
 
-		sprites.push( {
+		let httpUrl = null;
+		if (pngFile) {
+			const fullImagePath = path.join(spritePath, pngFile);
+			// Store the mapping for the HTTP server
+			spriteFiles.set(spriteDir, fullImagePath);
+			// Create HTTP URL
+			httpUrl = `http://localhost:${IMAGE_PORT}/sprite/${spriteDir}`;
+		}
+
+		sprites.push({
 			name: spriteDir,
 			type: 'sprite',
-			path: pngFile ? path.join(spritePath, pngFile) : null,
+			path: httpUrl,
+			localPath: pngFile ? path.join(spritePath, pngFile) : null,
 			yyFile,
 		});
 	}
@@ -539,7 +689,6 @@ function extractDefinitions(content, assetName, eventName = null) {
 
 	return definitions;
 }
-
 
 /**
  * Gets asset names from a given asset folder

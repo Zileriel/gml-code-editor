@@ -215,11 +215,17 @@ class GMLHoverProvider {
 		const contents = [];
 
 		let assetType = 'Asset';
+		let spriteObject = null;
+
 		if (window.assets) {
 			const assets = window.assets.getAssets();
 			if (assets.objects?.includes(assetName)) assetType = 'Object';
-			else if (assets.sprites?.includes(assetName)) assetType = 'Sprite';
-			else if (assets.sounds?.includes(assetName)) assetType = 'Sound';
+			else if (assets.sprites?.find((sprite) => sprite.name === assetName)) {
+				assetType = 'Sprite';
+				spriteObject = assets.sprites.find(
+					(sprite) => sprite.name === assetName
+				);
+			} else if (assets.sounds?.includes(assetName)) assetType = 'Sound';
 			else if (assets.paths?.includes(assetName)) assetType = 'Path';
 			else if (assets.rooms?.includes(assetName)) assetType = 'Room';
 			else if (assets.sequences?.includes(assetName)) assetType = 'Sequence';
@@ -231,6 +237,15 @@ class GMLHoverProvider {
 
 		const signature = `**${assetName}** - ${assetType} Asset`;
 		contents.push({ value: signature });
+
+		if (assetType === 'Sprite' && spriteObject?.path) {
+			// Add size parameter for server-side resizing
+			const resizedUrl = `${spriteObject.path}?size=128`;
+			contents.push({
+				value: `![Sprite Preview](${resizedUrl} "Sprite: ${assetName}")`,
+				isTrusted: true,
+			});
+		}
 
 		const description = `Project asset reference. Use this identifier to reference the ${assetType.toLowerCase()} in your code.`;
 		contents.push({ value: description });

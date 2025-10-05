@@ -258,7 +258,13 @@ class GMLCompletionProvider {
 		if (assets) {
 			const assetCategories = [
 				{ items: assets.objects || [], type: 'Object', detail: 'Game Object' },
-				{ items: assets.sprites || [], type: 'Sprite', detail: 'Sprite Asset' },
+				{
+					items: (assets.sprites || []).map((sprite) =>
+						typeof sprite === 'object' ? sprite.name : sprite
+					),
+					type: 'Sprite',
+					detail: 'Sprite Asset',
+				},
 				{ items: assets.sounds || [], type: 'Sound', detail: 'Sound Asset' },
 				{ items: assets.paths || [], type: 'Path', detail: 'Path Asset' },
 				{ items: assets.rooms || [], type: 'Room', detail: 'Room Asset' },
@@ -286,8 +292,7 @@ class GMLCompletionProvider {
 					if (assetName && typeof assetName === 'string') {
 						this.assetCompletions.push({
 							label: assetName,
-							kind:
-								window.monaco?.languages?.CompletionItemKind?.File || 20,
+							kind: window.monaco?.languages?.CompletionItemKind?.File || 20,
 							detail: category.detail,
 							documentation: {
 								value: `${category.type} asset: ${assetName}`,
