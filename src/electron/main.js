@@ -177,6 +177,15 @@ async function scanGameMakerProject(projectPath) {
 			scripts: [],
 			objects: [],
 			notes: [],
+			paths: [],
+			rooms: [],
+			sequences: [],
+			shaders: [],
+			sounds: [],
+			sprites: [],
+			tilesets: [],
+			fonts: [],
+			timelines: [],
 		},
 	};
 
@@ -197,6 +206,60 @@ async function scanGameMakerProject(projectPath) {
 		const notesPath = path.join(projectPath, 'notes');
 		if (fs.existsSync(notesPath)) {
 			projectData.assets.notes = await scanNotes(notesPath);
+		}
+
+		// Get paths
+		const pathsPath = path.join(projectPath, 'paths');
+		if (fs.existsSync(pathsPath)) {
+			projectData.assets.paths = await getAssetNames(pathsPath);
+		}
+
+		// Get rooms
+		const roomsPath = path.join(projectPath, 'rooms');
+		if (fs.existsSync(roomsPath)) {
+			projectData.assets.rooms = await getAssetNames(roomsPath);
+		}
+
+		// Get sequences
+		const sequencesPath = path.join(projectPath, 'sequences');
+		if (fs.existsSync(sequencesPath)) {
+			projectData.assets.sequences = await getAssetNames(sequencesPath);
+		}
+
+		// Get shaders
+		const shadersPath = path.join(projectPath, 'shaders');
+		if (fs.existsSync(shadersPath)) {
+			projectData.assets.shaders = await getAssetNames(shadersPath);
+		}
+
+		// Get sounds
+		const soundsPath = path.join(projectPath, 'sounds');
+		if (fs.existsSync(soundsPath)) {
+			projectData.assets.sounds = await getAssetNames(soundsPath);
+		}
+
+		// Get sprites
+		const spritesPath = path.join(projectPath, 'sprites');
+		if (fs.existsSync(spritesPath)) {
+			projectData.assets.sprites = await getAssetNames(spritesPath);
+		}
+
+		// Get tilesets
+		const tilesetsPath = path.join(projectPath, 'tilesets');
+		if (fs.existsSync(tilesetsPath)) {
+			projectData.assets.tilesets = await getAssetNames(tilesetsPath);
+		}
+
+		// Get fonts
+		const fontsPath = path.join(projectPath, 'fonts');
+		if (fs.existsSync(fontsPath)) {
+			projectData.assets.fonts = await getAssetNames(fontsPath);
+		}
+
+		// Get timelines
+		const timelinesPath = path.join(projectPath, 'timelines');
+		if (fs.existsSync(timelinesPath)) {
+			projectData.assets.timelines = await getAssetNames(timelinesPath);
 		}
 	} catch (error) {
 		console.error('Error scanning project:', error);
@@ -333,6 +396,18 @@ async function scanNotes(notesPath) {
 	}
 
 	return notes;
+}
+
+/**
+ * Gets asset names from a given asset folder
+ * @param {string} assetPath - Path to the asset folder
+ * @returns {Promise<Array>} Array of asset names
+ */
+async function getAssetNames(assetPath) {
+	return fs
+		.readdirSync(assetPath, { withFileTypes: true })
+		.filter((dirent) => dirent.isDirectory())
+		.map((dirent) => dirent.name);
 }
 
 //#endregion
