@@ -405,7 +405,13 @@ async function scanGameMakerProject(projectPath) {
 	}
 
 	// Compile all definitions from scripts and objects
-	const allDefinitions = { macros: [], enums: [], functions: [], globals: [], globalvars: [] };
+	const allDefinitions = {
+		macros: [],
+		enums: [],
+		functions: [],
+		globals: [],
+		globalvars: [],
+	};
 
 	// Add definitions from scripts
 	if (projectData.assets.scripts) {
@@ -501,7 +507,13 @@ async function scanObjects(objectsPath) {
 
 				// Scan for event GML files
 				const events = [];
-				const allDefinitions = { macros: [], enums: [], functions: [], globals: [], globalvars: [] };
+				const allDefinitions = {
+					macros: [],
+					enums: [],
+					functions: [],
+					globals: [],
+					globalvars: [],
+				};
 				const files = fs.readdirSync(objectPath);
 
 				for (const file of files) {
@@ -711,15 +723,19 @@ function extractDefinitions(content, assetName, eventName = null) {
 		}
 
 		// Handle globalvar declarations (can be multiple in one line)
-		const globalvarMatch = line.match(/globalvar\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*)/);
+		const globalvarMatch = line.match(
+			/globalvar\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*)/
+		);
 		if (globalvarMatch) {
-			const varNames = globalvarMatch[1].split(',').map(name => name.trim());
-			varNames.forEach(varName => {
+			const varNames = globalvarMatch[1].split(',').map((name) => name.trim());
+			varNames.forEach((varName) => {
 				if (varName && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(varName)) {
 					definitions.globalvars.push({
 						name: varName,
 						location: {
-							file: eventName ? `${assetName}_${eventName}` : `${assetName}.gml`,
+							file: eventName
+								? `${assetName}_${eventName}`
+								: `${assetName}.gml`,
 							line: lineNumber,
 							column: line.indexOf(varName) + 1,
 							assetName,

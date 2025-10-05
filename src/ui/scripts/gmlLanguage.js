@@ -179,8 +179,8 @@ class GMLLanguageDefinition {
 		const assetNames = Array.from(this.assetNames);
 		const userGlobals = Array.from(this.globals);
 		const userGlobalvars = Array.from(this.globalvars);
-		const userFunctions = Array.from(this.functions).filter(name => 
-			!builtinFunctions.includes(name)
+		const userFunctions = Array.from(this.functions).filter(
+			(name) => !builtinFunctions.includes(name)
 		);
 
 		const userLocalVars = [];
@@ -347,14 +347,8 @@ class GMLLanguageDefinition {
 						['keyword', 'white', 'variable.local'],
 					],
 					// Global variable declarations
-					[
-						/(globalvar)(\s+)([a-zA-Z_][\w]*)/,
-						['keyword', 'white', 'atom'],
-					],
-					[
-						/(global)(\.)([a-zA-Z_][\w]*)/,
-						['atom', 'atom', 'atom'],
-					],
+					[/(globalvar)(\s+)([a-zA-Z_][\w]*)/, ['keyword', 'white', 'atom']],
+					[/(global)(\.)([a-zA-Z_][\w]*)/, ['atom', 'atom', 'atom']],
 
 					// Enum member access
 					[
@@ -502,8 +496,6 @@ class GMLLanguageDefinition {
 					[/\/\*/, 'comment', '@comment'],
 					[/\}/, { token: '@brackets', next: '@pop' }],
 				],
-
-
 
 				whitespace: [
 					[/[ \t\r\n]+/, 'white'],

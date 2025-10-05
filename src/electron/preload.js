@@ -171,7 +171,7 @@ contextBridge.exposeInMainWorld('definitions', {
 		}
 
 		// Check if symbol already exists
-		const exists = targetArray.find(s => s.name === symbol.name);
+		const exists = targetArray.find((s) => s.name === symbol.name);
 		if (!exists) {
 			targetArray.push(symbol);
 		}
@@ -200,7 +200,7 @@ contextBridge.exposeInMainWorld('definitions', {
 				return;
 		}
 
-		const index = targetArray.findIndex(s => s.name === symbolName);
+		const index = targetArray.findIndex((s) => s.name === symbolName);
 		if (index !== -1) {
 			targetArray.splice(index, 1);
 		}

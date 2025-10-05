@@ -314,23 +314,25 @@ class GMLCompletionProvider {
 			? definitions
 			: definitions?.macros || [];
 		const enums = Array.isArray(definitions)
-			? (arguments[1] || [])
+			? arguments[1] || []
 			: definitions?.enums || [];
 		const functions = Array.isArray(definitions)
-			? (arguments[2] || [])
+			? arguments[2] || []
 			: definitions?.functions || [];
 		const globals = Array.isArray(definitions)
-			? (arguments[3] || [])
+			? arguments[3] || []
 			: definitions?.globals || [];
 		const globalvars = Array.isArray(definitions)
-			? (arguments[4] || [])
+			? arguments[4] || []
 			: definitions?.globalvars || [];
 
 		macros.forEach((macro) => {
-			const location = macro.location?.assetName 
-				? `${macro.location.assetName}${macro.location.eventName ? ` (${macro.location.eventName})` : ''}`
+			const location = macro.location?.assetName
+				? `${macro.location.assetName}${
+						macro.location.eventName ? ` (${macro.location.eventName})` : ''
+				  }`
 				: `${macro.location?.file || 'unknown'}:${macro.location?.line || 0}`;
-			
+
 			this.userSymbolCompletions.push({
 				label: macro.name,
 				kind: window.monaco?.languages?.CompletionItemKind?.Constant || 21,
@@ -345,10 +347,14 @@ class GMLCompletionProvider {
 		});
 
 		enums.forEach((enumSym) => {
-			const location = enumSym.location?.assetName 
-				? `${enumSym.location.assetName}${enumSym.location.eventName ? ` (${enumSym.location.eventName})` : ''}`
-				: `${enumSym.location?.file || 'unknown'}:${enumSym.location?.line || 0}`;
-			
+			const location = enumSym.location?.assetName
+				? `${enumSym.location.assetName}${
+						enumSym.location.eventName ? ` (${enumSym.location.eventName})` : ''
+				  }`
+				: `${enumSym.location?.file || 'unknown'}:${
+						enumSym.location?.line || 0
+				  }`;
+
 			this.userSymbolCompletions.push({
 				label: enumSym.name,
 				kind: window.monaco?.languages?.CompletionItemKind?.Enum || 15,
@@ -363,10 +369,12 @@ class GMLCompletionProvider {
 		});
 
 		functions.forEach((func) => {
-			const location = func.location?.assetName 
-				? `${func.location.assetName}${func.location.eventName ? ` (${func.location.eventName})` : ''}`
+			const location = func.location?.assetName
+				? `${func.location.assetName}${
+						func.location.eventName ? ` (${func.location.eventName})` : ''
+				  }`
 				: `${func.location?.file || 'unknown'}:${func.location?.line || 0}`;
-			
+
 			this.userSymbolCompletions.push({
 				label: func.name,
 				kind: window.monaco?.languages?.CompletionItemKind?.Function || 1,
@@ -381,10 +389,12 @@ class GMLCompletionProvider {
 		});
 
 		globals.forEach((global) => {
-			const location = global.location?.assetName 
-				? `${global.location.assetName}${global.location.eventName ? ` (${global.location.eventName})` : ''}`
+			const location = global.location?.assetName
+				? `${global.location.assetName}${
+						global.location.eventName ? ` (${global.location.eventName})` : ''
+				  }`
 				: `${global.location?.file || 'unknown'}:${global.location?.line || 0}`;
-			
+
 			this.userSymbolCompletions.push({
 				label: global.name,
 				kind: window.monaco?.languages?.CompletionItemKind?.Variable || 4,
@@ -399,10 +409,16 @@ class GMLCompletionProvider {
 		});
 
 		globalvars.forEach((globalvar) => {
-			const location = globalvar.location?.assetName 
-				? `${globalvar.location.assetName}${globalvar.location.eventName ? ` (${globalvar.location.eventName})` : ''}`
-				: `${globalvar.location?.file || 'unknown'}:${globalvar.location?.line || 0}`;
-			
+			const location = globalvar.location?.assetName
+				? `${globalvar.location.assetName}${
+						globalvar.location.eventName
+							? ` (${globalvar.location.eventName})`
+							: ''
+				  }`
+				: `${globalvar.location?.file || 'unknown'}:${
+						globalvar.location?.line || 0
+				  }`;
+
 			this.userSymbolCompletions.push({
 				label: globalvar.name,
 				kind: window.monaco?.languages?.CompletionItemKind?.Variable || 4,

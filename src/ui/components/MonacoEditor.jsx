@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useRef, useEffect, useState } from 'react';
 import Editor from '@monaco-editor/react';
 import { useEditorStatus } from '../contexts/EditorStatusContext';
 import { useEditor } from '../contexts/EditorContext';
@@ -19,6 +19,7 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 	const editorRef = useRef(null);
 	const containerRef = useRef(null);
 	const resizeObserverRef = useRef(null);
+	const [isEditorReady, setIsEditorReady] = useState(false);
 	const { updateEditorStatus } = useEditorStatus();
 	const { setEditorInstance, openFileAtLocation, openTabs } = useEditor();
 
@@ -174,10 +175,11 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 					monaco.editor.setModelLanguage(model, monacoLanguage);
 
 					if (monacoLanguage === 'gml') {
-						setTimeout(() => {
-							monaco.editor.setTheme('gml-theme');
-							editorRef.current.updateOptions({ theme: 'gml-theme' });
-						}, 50);
+						monaco.editor.setTheme('gml-theme');
+						editorRef.current.updateOptions({ theme: 'gml-theme' });
+					} else {
+						monaco.editor.setTheme('vs-dark');
+						editorRef.current.updateOptions({ theme: 'vs-dark' });
 					}
 				}
 			}
@@ -198,12 +200,18 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 	const extractSymbols = useCallback((content) => {
 		if (!content || typeof content !== 'string') return null;
 
-		const symbols = { macros: [], enums: [], functions: [], globals: [], globalvars: [] };
+		const symbols = {
+			macros: [],
+			enums: [],
+			functions: [],
+			globals: [],
+			globalvars: [],
+		};
 
 		// Extract macros
 		const macroMatches = content.match(/#macro\s+([a-zA-Z_][a-zA-Z0-9_]*)/g);
 		if (macroMatches) {
-			macroMatches.forEach(match => {
+			macroMatches.forEach((match) => {
 				const nameMatch = match.match(/#macro\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
 				if (nameMatch) {
 					symbols.macros.push({ name: nameMatch[1], type: 'macro' });
@@ -214,7 +222,7 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 		// Extract enums
 		const enumMatches = content.match(/enum\s+([a-zA-Z_][a-zA-Z0-9_]*)/g);
 		if (enumMatches) {
-			enumMatches.forEach(match => {
+			enumMatches.forEach((match) => {
 				const nameMatch = match.match(/enum\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
 				if (nameMatch) {
 					symbols.enums.push({ name: nameMatch[1], type: 'enum' });
@@ -223,9 +231,11 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 		}
 
 		// Extract functions
-		const functionMatches = content.match(/function\s+([a-zA-Z_][a-zA-Z0-9_]*)/g);
+		const functionMatches = content.match(
+			/function\s+([a-zA-Z_][a-zA-Z0-9_]*)/g
+		);
 		if (functionMatches) {
-			functionMatches.forEach(match => {
+			functionMatches.forEach((match) => {
 				const nameMatch = match.match(/function\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
 				if (nameMatch) {
 					symbols.functions.push({ name: nameMatch[1], type: 'function' });
@@ -237,13 +247,13 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 		const globalMatches = content.match(/global\.([a-zA-Z_][a-zA-Z0-9_]*)/g);
 		if (globalMatches) {
 			const uniqueGlobals = new Set();
-			globalMatches.forEach(match => {
+			globalMatches.forEach((match) => {
 				const nameMatch = match.match(/global\.([a-zA-Z_][a-zA-Z0-9_]*)/);
 				if (nameMatch) {
 					uniqueGlobals.add(nameMatch[1]);
 				}
 			});
-			uniqueGlobals.forEach(name => {
+			uniqueGlobals.forEach((name) => {
 				symbols.globals.push({ name, type: 'global' });
 			});
 		}
@@ -251,11 +261,11 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 		// Extract globalvars
 		const globalvarMatches = content.match(/globalvar\s+([^;]+);/g);
 		if (globalvarMatches) {
-			globalvarMatches.forEach(match => {
+			globalvarMatches.forEach((match) => {
 				const varMatch = match.match(/globalvar\s+([^;]+)/);
 				if (varMatch) {
-					const vars = varMatch[1].split(',').map(v => v.trim());
-					vars.forEach(varName => {
+					const vars = varMatch[1].split(',').map((v) => v.trim());
+					vars.forEach((varName) => {
 						if (varName && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(varName)) {
 							symbols.globalvars.push({ name: varName, type: 'globalvar' });
 						}
@@ -268,58 +278,71 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 	}, []);
 
 	// Update symbols using preload.js methods
-	const updateSymbols = useCallback((content) => {
-		if (!content || !window.definitions || !tabId) return;
+	const updateSymbols = useCallback(
+		(content) => {
+			if (!content || !window.definitions || !tabId) return;
 
-		const newSymbols = extractSymbols(content);
-		if (!newSymbols) return;
+			const newSymbols = extractSymbols(content);
+			if (!newSymbols) return;
 
-		let symbolsChanged = false;
-		const oldFileSymbols = window.gmlFileSymbols.get(tabId) || { macros: [], enums: [], functions: [], globals: [], globalvars: [] };
+			let symbolsChanged = false;
+			const oldFileSymbols = window.gmlFileSymbols.get(tabId) || {
+				macros: [],
+				enums: [],
+				functions: [],
+				globals: [],
+				globalvars: [],
+			};
 
-		// Compare and update each symbol type
-		Object.keys(newSymbols).forEach(symbolType => {
-			const oldSymbols = oldFileSymbols[symbolType] || [];
-			const newSymbolsForType = newSymbols[symbolType];
+			// Compare and update each symbol type
+			Object.keys(newSymbols).forEach((symbolType) => {
+				const oldSymbols = oldFileSymbols[symbolType] || [];
+				const newSymbolsForType = newSymbols[symbolType];
 
-			// Remove old symbols no longer present
-			oldSymbols.forEach(oldSymbol => {
-				const stillExists = newSymbolsForType.find(newSymbol => newSymbol.name === oldSymbol.name);
-				if (!stillExists) {
-					window.definitions.removeSymbol(symbolType, oldSymbol.name);
-					symbolsChanged = true;
-				}
+				// Remove old symbols no longer present
+				oldSymbols.forEach((oldSymbol) => {
+					const stillExists = newSymbolsForType.find(
+						(newSymbol) => newSymbol.name === oldSymbol.name
+					);
+					if (!stillExists) {
+						window.definitions.removeSymbol(symbolType, oldSymbol.name);
+						symbolsChanged = true;
+					}
+				});
+
+				// Add new symbols
+				newSymbolsForType.forEach((newSymbol) => {
+					const alreadyExists = oldSymbols.find(
+						(oldSymbol) => oldSymbol.name === newSymbol.name
+					);
+					if (!alreadyExists) {
+						window.definitions.addSymbol(symbolType, newSymbol);
+						symbolsChanged = true;
+					}
+				});
 			});
 
-			// Add new symbols
-			newSymbolsForType.forEach(newSymbol => {
-				const alreadyExists = oldSymbols.find(oldSymbol => oldSymbol.name === newSymbol.name);
-				if (!alreadyExists) {
-					window.definitions.addSymbol(symbolType, newSymbol);
-					symbolsChanged = true;
-				}
-			});
-		});
+			// Store symbols for this file
+			window.gmlFileSymbols.set(tabId, newSymbols);
 
-		// Store symbols for this file
-		window.gmlFileSymbols.set(tabId, newSymbols);
+			// Update providers if symbols changed
+			if (symbolsChanged) {
+				setTimeout(() => {
+					if (window.monaco && window.monaco.languages) {
+						const allDefinitions = window.definitions.getDefinitions();
 
-		// Update providers if symbols changed
-		if (symbolsChanged) {
-			setTimeout(() => {
-				if (window.monaco && window.monaco.languages) {
-					const allDefinitions = window.definitions.getDefinitions();
-					
-					if (window.gmlCompletionProvider) {
-						window.gmlCompletionProvider.updateUserSymbols(allDefinitions);
+						if (window.gmlCompletionProvider) {
+							window.gmlCompletionProvider.updateUserSymbols(allDefinitions);
+						}
+						if (window.gmlLanguage) {
+							window.gmlLanguage.updateUserSymbols(allDefinitions);
+						}
 					}
-					if (window.gmlLanguage) {
-						window.gmlLanguage.updateUserSymbols(allDefinitions);
-					}
-				}
-			}, 100);
-		}
-	}, [extractSymbols, tabId]);
+				}, 100);
+			}
+		},
+		[extractSymbols, tabId]
+	);
 
 	// Update symbols when content changes
 	useEffect(() => {
@@ -334,7 +357,7 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 			setTimeout(() => {
 				if (window.monaco && window.monaco.languages) {
 					const allDefinitions = window.definitions.getDefinitions();
-					
+
 					if (window.gmlCompletionProvider) {
 						window.gmlCompletionProvider.updateUserSymbols(allDefinitions);
 					}
@@ -345,6 +368,11 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 			}, 200);
 		}
 	}, [language, tabId]);
+
+	// Reset editor ready state when switching tabs or language
+	useEffect(() => {
+		setIsEditorReady(false);
+	}, [tabId, language]);
 
 	// Cleanup debounced timeout on unmount
 	useEffect(() => {
@@ -382,7 +410,7 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 		roundedSelection: false,
 		scrollBeyondLastLine: false,
 		automaticLayout: true,
-		theme: 'gml-theme',
+		theme: language === 'gml' ? 'gml-theme' : 'vs-dark',
 		wordWrap: 'off',
 		tabSize: 4,
 		insertSpaces: false,
@@ -415,15 +443,29 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 	return (
 		<div
 			ref={containerRef}
-			style={{ height: '100%', backgroundColor: 'var(--color-foreground)' }}>
+			style={{
+				height: '100%',
+				backgroundColor: '#1e1e1e',
+			}}
+			className="monaco-editor-container">
 			<Editor
 				height="100%"
 				language={getMonacoLanguage(language)}
-				value={content}
+				value={isEditorReady ? content : ''}
 				onChange={handleEditorChange}
-				options={editorOptions}
-				loading="Loading editor..."
+				options={{
+					...editorOptions,
+					theme: language === 'gml' ? 'gml-theme' : 'vs-dark',
+				}}
+				theme={language === 'gml' ? 'gml-theme' : 'vs-dark'}
+				loading=""
 				beforeMount={async (monaco) => {
+					// Define theme globally once
+					if (!window.gmlThemeDefined) {
+						monaco.editor.defineTheme('gml-theme', gmlTheme);
+						window.gmlThemeDefined = true;
+					}
+
 					if (!isGmlRegisteredGlobally) {
 						try {
 							await gmlLanguage.initialize();
@@ -454,8 +496,7 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 							monaco.languages.setMonarchTokensProvider(
 								'gml',
 								monarchDefinition
-							); // Define custom theme
-							monaco.editor.defineTheme('gml-theme', gmlTheme);
+							);
 
 							// Register completion provider
 							monaco.languages.registerCompletionItemProvider(
@@ -497,11 +538,17 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 							isGmlRegisteredGlobally = true;
 						}
 					}
-
-					monaco.editor.setTheme('gml-theme');
 				}}
 				onMount={(editor, monaco) => {
 					editorRef.current = editor;
+
+					// Set content after a short delay to ensure syntax highlighting is applied
+					setTimeout(() => {
+						if (!isEditorReady) {
+							editor.setValue(content);
+							setIsEditorReady(true);
+						}
+					}, 50);
 					setEditorInstance(editor);
 
 					editor.onMouseDown((e) => {
@@ -585,10 +632,6 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 							window.gmlCommandRegistered = true;
 						} catch (error) {}
 					}
-
-					// Force the theme and language
-					monaco.editor.setTheme('gml-theme');
-					editor.updateOptions({ theme: 'gml-theme' });
 
 					// Ensure the model uses the correct language
 					const model = editor.getModel();
