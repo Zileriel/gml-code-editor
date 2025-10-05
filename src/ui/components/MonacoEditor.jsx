@@ -21,6 +21,41 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 	const { updateEditorStatus } = useEditorStatus();
 	const { setEditorInstance } = useEditor();
 
+	useEffect(() => {
+		const handleAssetUpdate = () => {
+			if (window.assets) {
+				const assets = window.assets.getAssets();
+				gmlLanguage.updateAssets(assets);
+				gmlCompletionProvider.updateAssets(assets);
+				gmlHoverProvider.updateAssets(assets);
+
+				// Trigger re-linting of all open GML models
+				if (window.monaco) {
+					const models = window.monaco.editor.getModels();
+					models.forEach((model) => {
+						if (model.getLanguageId() === 'gml') {
+							const diagnostics = gmlLintingProvider.validateCode(model);
+							window.monaco.editor.setModelMarkers(model, 'gml', diagnostics);
+						}
+					});
+				}
+			}
+		};
+
+		const removeProjectListener =
+			window.api?.onProjectLoaded?.(handleAssetUpdate);
+
+		if (window.assets) {
+			handleAssetUpdate();
+		}
+
+		return () => {
+			if (removeProjectListener) {
+				removeProjectListener();
+			}
+		};
+	}, []);
+
 	React.useEffect(() => {
 		if (editorRef.current && containerRef.current) {
 			containerRef.current._monacoEditor = editorRef.current;
@@ -148,14 +183,20 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 							const languageConfig = gmlLanguage.getLanguageConfiguration();
 							monaco.languages.setLanguageConfiguration('gml', languageConfig);
 
+							// Update assets if available
+							if (window.assets) {
+								const assets = window.assets.getAssets();
+								gmlLanguage.updateAssets(assets);
+								gmlCompletionProvider.updateAssets(assets);
+								gmlHoverProvider.updateAssets(assets);
+							}
+
 							// Set up monarch tokenizer with initialized data
 							const monarchDefinition = gmlLanguage.getMonarchDefinition();
 							monaco.languages.setMonarchTokensProvider(
 								'gml',
 								monarchDefinition
-							);
-
-							// Define custom theme
+							); // Define custom theme
 							monaco.editor.defineTheme('gml-theme', gmlTheme);
 
 							// Register completion provider

@@ -1,5 +1,17 @@
 const { contextBridge, ipcRenderer, webFrame } = require('electron');
 
+// Assets
+let objects = [];
+let paths = [];
+let rooms = [];
+let sequences = [];
+let shaders = [];
+let sounds = [];
+let sprites = [];
+let tilesets = [];
+let fonts = [];
+let timelines = [];
+
 contextBridge.exposeInMainWorld('api', {
 	send: (channel, data) => {
 		ipcRenderer.send(channel, data);
@@ -66,4 +78,43 @@ contextBridge.exposeInMainWorld('menu', {
 	checkForUpdates: () => ipcRenderer.send('menu:check-for-updates'),
 	reportIssue: () => ipcRenderer.send('menu:report-issue'),
 	about: () => ipcRenderer.send('menu:about'),
+});
+
+contextBridge.exposeInMainWorld('assets', {
+	getObjects: () => objects.map(obj => obj.name),
+	getPaths: () => paths,
+	getRooms: () => rooms,
+	getSequences: () => sequences,
+	getShaders: () => shaders,
+	getSounds: () => sounds,
+	getSprites: () => sprites,
+	getTilesets: () => tilesets,
+	getFonts: () => fonts,
+	getTimelines: () => timelines,
+
+	getAssets: () => ({
+		objects: objects.map(obj => obj.name),
+		paths,
+		rooms,
+		sequences,
+		shaders,
+		sounds,
+		sprites,
+		tilesets,
+		fonts,
+		timelines,
+	}),
+});
+
+ipcRenderer.on('project:loaded', (event, projectData) => {
+	objects = projectData.assets.objects || [];
+	paths = projectData.assets.paths || [];
+	rooms = projectData.assets.rooms || [];
+	sequences = projectData.assets.sequences || [];
+	shaders = projectData.assets.shaders || [];
+	sounds = projectData.assets.sounds || [];
+	sprites = projectData.assets.sprites || [];
+	tilesets = projectData.assets.tilesets || [];
+	fonts = projectData.assets.fonts || [];
+	timelines = projectData.assets.timelines || [];
 });

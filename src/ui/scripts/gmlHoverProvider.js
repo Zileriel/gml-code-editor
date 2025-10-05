@@ -1,4 +1,5 @@
 import gmlDefinitionsParser from './gmlDefinitionsParser.js';
+import gmlLanguage from './gmlLanguage.js';
 
 class GMLHoverProvider {
 	constructor() {
@@ -10,6 +11,15 @@ class GMLHoverProvider {
 			await gmlDefinitionsParser.loadDefinitions();
 			this.initialized = true;
 		}
+	}
+
+	/**
+	 * Update asset information for hover provider
+	 * @param {Object} assets - Asset data from the main process
+	 */
+	updateAssets(assets) {
+		// Assets are managed by gmlLanguage, we just need to ensure it's updated
+		// This method exists for consistency with other providers
 	}
 
 	provideHover(model, position, token) {
@@ -34,6 +44,11 @@ class GMLHoverProvider {
 		const constant = gmlDefinitionsParser.getConstant(identifier);
 		if (constant) {
 			return this.createConstantHover(constant);
+		}
+
+		// Check for assets
+		if (gmlLanguage.assetNames.has(identifier)) {
+			return this.createAssetHover(identifier);
 		}
 
 		return null;
@@ -152,6 +167,35 @@ class GMLHoverProvider {
 		if (constant.deprecated) {
 			contents.push({ value: '**⚠️ Deprecated**' });
 		}
+
+		return {
+			contents: contents,
+		};
+	}
+
+	createAssetHover(assetName) {
+		const contents = [];
+
+		let assetType = 'Asset';
+		if (window.assets) {
+			const assets = window.assets.getAssets();
+			if (assets.objects?.includes(assetName)) assetType = 'Object';
+			else if (assets.sprites?.includes(assetName)) assetType = 'Sprite';
+			else if (assets.sounds?.includes(assetName)) assetType = 'Sound';
+			else if (assets.paths?.includes(assetName)) assetType = 'Path';
+			else if (assets.rooms?.includes(assetName)) assetType = 'Room';
+			else if (assets.sequences?.includes(assetName)) assetType = 'Sequence';
+			else if (assets.shaders?.includes(assetName)) assetType = 'Shader';
+			else if (assets.tilesets?.includes(assetName)) assetType = 'Tileset';
+			else if (assets.fonts?.includes(assetName)) assetType = 'Font';
+			else if (assets.timelines?.includes(assetName)) assetType = 'Timeline';
+		}
+
+		const signature = `**${assetName}** - ${assetType} Asset`;
+		contents.push({ value: signature });
+
+		const description = `Project asset reference. Use this identifier to reference the ${assetType.toLowerCase()} in your code.`;
+		contents.push({ value: description });
 
 		return {
 			contents: contents,

@@ -3,6 +3,7 @@ import gmlDefinitionsParser from './gmlDefinitionsParser.js';
 class GMLCompletionProvider {
 	constructor() {
 		this.completionItems = [];
+		this.assetCompletions = [];
 	}
 
 	async initialize() {
@@ -244,6 +245,59 @@ class GMLCompletionProvider {
 		}));
 	}
 
+	/**
+	 * Updates the asset completions based on the current project assets
+	 * @param {Object} assets - Asset data from the main process containing objects, sprites, sounds, etc.
+	 */
+	updateAssets(assets) {
+		this.assetCompletions = [];
+
+		if (assets) {
+			const assetCategories = [
+				{ items: assets.objects || [], type: 'Object', detail: 'Game Object' },
+				{ items: assets.sprites || [], type: 'Sprite', detail: 'Sprite Asset' },
+				{ items: assets.sounds || [], type: 'Sound', detail: 'Sound Asset' },
+				{ items: assets.paths || [], type: 'Path', detail: 'Path Asset' },
+				{ items: assets.rooms || [], type: 'Room', detail: 'Room Asset' },
+				{
+					items: assets.sequences || [],
+					type: 'Sequence',
+					detail: 'Sequence Asset',
+				},
+				{ items: assets.shaders || [], type: 'Shader', detail: 'Shader Asset' },
+				{
+					items: assets.tilesets || [],
+					type: 'Tileset',
+					detail: 'Tileset Asset',
+				},
+				{ items: assets.fonts || [], type: 'Font', detail: 'Font Asset' },
+				{
+					items: assets.timelines || [],
+					type: 'Timeline',
+					detail: 'Timeline Asset',
+				},
+			];
+
+			assetCategories.forEach((category) => {
+				category.items.forEach((assetName) => {
+					if (assetName && typeof assetName === 'string') {
+						this.assetCompletions.push({
+							label: assetName,
+							kind: window.monaco?.languages?.CompletionItemKind?.Value || 12,
+							detail: category.detail,
+							documentation: {
+								value: `${category.type} asset: ${assetName}`,
+								isTrusted: true,
+							},
+							insertText: assetName,
+							sortText: '1' + assetName,
+						});
+					}
+				});
+			});
+		}
+	}
+
 	findCurrentFunction(text, offset) {
 		const beforeOffset = text.substring(0, offset);
 		const functionMatches = [
@@ -338,7 +392,20 @@ class GMLCompletionProvider {
 				range: range,
 			}));
 
-		const allSuggestions = [...validLocals, ...validBuiltins];
+		const validAssets = this.assetCompletions
+			.filter(
+				(item) =>
+					item &&
+					item.label &&
+					typeof item.label === 'string' &&
+					item.kind !== undefined
+			)
+			.map((item) => ({
+				...item,
+				range: range,
+			}));
+
+		const allSuggestions = [...validLocals, ...validAssets, ...validBuiltins];
 		const seenLabels = new Set();
 		const uniqueSuggestions = allSuggestions.filter((item) => {
 			if (seenLabels.has(item.label)) {

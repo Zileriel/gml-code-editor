@@ -1,15 +1,26 @@
 import gmlDefinitionsParser from './gmlDefinitionsParser.js';
+import gmlLanguage from './gmlLanguage.js';
 
 class GMLLintingProvider {
 	constructor() {
 		this.initialized = false;
 		this.diagnostics = new Map();
+		this.declaredMacros = new Set();
+		this.declaredEnums = new Set();
 	}
 
 	async initialize() {
 		if (!this.initialized) {
 			this.initialized = true;
 		}
+	}
+
+	/**
+	 * Update asset information for linting
+	 * @param {Object} assets - Asset data from the main process
+	 */
+	updateAssets(assets) {
+		gmlLanguage.updateAssets(assets);
 	}
 
 	/**
@@ -47,6 +58,40 @@ class GMLLintingProvider {
 		diagnostics.push(
 			...this.checkMultiLineSyntaxErrors(textWithoutStrings, lines, model)
 		);
+
+		// Reset macro and enum tracking for this validation
+		this.declaredMacros.clear();
+		this.declaredEnums.clear();
+
+		// Check for read-only variable assignments and redeclarations
+		for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+			const line = lines[lineIndex];
+			const lineNumber = lineIndex + 1;
+
+			if (this.isCommentOrEmpty(line)) continue;
+
+			const lineWithoutStrings = this.removeStrings(line);
+
+			diagnostics.push(
+				...this.checkReadOnlyAssignments(lineWithoutStrings, lineNumber, model)
+			);
+
+			diagnostics.push(
+				...this.checkMacroRedeclarations(lineWithoutStrings, lineNumber, model)
+			);
+
+			diagnostics.push(
+				...this.checkEnumRedeclarations(lineWithoutStrings, lineNumber, model)
+			);
+
+			diagnostics.push(
+				...this.checkFunctionRedeclarations(
+					lineWithoutStrings,
+					lineNumber,
+					model
+				)
+			);
+		}
 
 		return diagnostics;
 	}
@@ -346,6 +391,246 @@ class GMLLintingProvider {
 		}
 
 		return diagnostics;
+	}
+
+	/**
+	 * Check for assignments to read-only identifiers (constants, keywords, assets, etc.)
+	 */
+	checkReadOnlyAssignments(line, lineNumber, model) {
+		const diagnostics = [];
+		const assignmentMatches = line.matchAll(
+			/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*([+\-*/%&|^]?=)/g
+		);
+
+		for (const match of assignmentMatches) {
+			const identifier = match[1];
+			const operator = match[2];
+			const startColumn = match.index + 1;
+			const endColumn = startColumn + identifier.length;
+
+			let isReadOnly = false;
+			let errorMessage = '';
+
+			// Check if it's a built-in constant
+			const constant = gmlDefinitionsParser.getConstant(identifier);
+			if (constant && !constant.deprecated) {
+				isReadOnly = true;
+				errorMessage = `Cannot assign to built-in constant '${identifier}'`;
+			}
+
+			// Check if it's a built-in variable that cannot be set
+			const variable = gmlDefinitionsParser.getVariable(identifier);
+			if (variable && !variable.deprecated && !variable.canSet) {
+				isReadOnly = true;
+				errorMessage = `Cannot assign to read-only built-in variable '${identifier}'`;
+			}
+
+			// Check if it's a built-in function
+			const func = gmlDefinitionsParser.getFunction(identifier);
+			if (func && !func.deprecated) {
+				isReadOnly = true;
+				errorMessage = `Cannot assign to built-in function '${identifier}'`;
+			}
+
+			// Check if it's a language keyword
+			if (this.isLanguageKeyword(identifier)) {
+				isReadOnly = true;
+				errorMessage = `Cannot assign to language keyword '${identifier}'`;
+			}
+
+			// Check if it's an asset name
+			if (gmlLanguage.assetNames.has(identifier)) {
+				isReadOnly = true;
+				errorMessage = `Cannot assign to asset name '${identifier}'`;
+			}
+
+			// Check if it's a user-defined macro
+			if (gmlLanguage.userMacros.has(identifier)) {
+				isReadOnly = true;
+				errorMessage = `Cannot assign to macro '${identifier}'. Macros are read-only`;
+			}
+
+			// Check if it's a user-defined enum
+			if (gmlLanguage.userEnums.has(identifier)) {
+				isReadOnly = true;
+				errorMessage = `Cannot assign to enum '${identifier}'. Enums are read-only`;
+			}
+
+			if (isReadOnly) {
+				diagnostics.push({
+					severity: 8,
+					message: errorMessage,
+					startLineNumber: lineNumber,
+					startColumn: startColumn,
+					endLineNumber: lineNumber,
+					endColumn: endColumn,
+					code: 'read-only-assignment',
+				});
+			}
+		}
+
+		return diagnostics;
+	}
+
+	/**
+	 * Check for macro redeclarations
+	 */
+	checkMacroRedeclarations(line, lineNumber, model) {
+		const diagnostics = [];
+
+		const macroMatches = line.matchAll(/#macro\s+([a-zA-Z_][a-zA-Z0-9_]*)/g);
+
+		for (const match of macroMatches) {
+			const macroName = match[1];
+			const startColumn = match.index + match[0].indexOf(macroName) + 1;
+			const endColumn = startColumn + macroName.length;
+
+			if (this.declaredMacros.has(macroName)) {
+				diagnostics.push({
+					severity: 8,
+					message: `Macro '${macroName}' has already been declared`,
+					startLineNumber: lineNumber,
+					startColumn: startColumn,
+					endLineNumber: lineNumber,
+					endColumn: endColumn,
+					code: 'macro-redeclaration',
+				});
+			} else {
+				this.declaredMacros.add(macroName);
+			}
+		}
+
+		return diagnostics;
+	}
+
+	/**
+	 * Check for enum redeclarations
+	 */
+	checkEnumRedeclarations(line, lineNumber, model) {
+		const diagnostics = [];
+
+		const enumMatches = line.matchAll(/enum\s+([a-zA-Z_][a-zA-Z0-9_]*)/g);
+
+		for (const match of enumMatches) {
+			const enumName = match[1];
+			const startColumn = match.index + match[0].indexOf(enumName) + 1;
+			const endColumn = startColumn + enumName.length;
+
+			if (this.declaredEnums.has(enumName)) {
+				diagnostics.push({
+					severity: 8,
+					message: `Enum '${enumName}' has already been declared`,
+					startLineNumber: lineNumber,
+					startColumn: startColumn,
+					endLineNumber: lineNumber,
+					endColumn: endColumn,
+					code: 'enum-redeclaration',
+				});
+			} else {
+				this.declaredEnums.add(enumName);
+			}
+		}
+
+		return diagnostics;
+	}
+
+	/**
+	 * Check for function redeclarations (trying to redefine built-in functions)
+	 */
+	checkFunctionRedeclarations(line, lineNumber, model) {
+		const diagnostics = [];
+
+		const functionMatches = line.matchAll(
+			/function\s+([a-zA-Z_][a-zA-Z0-9_]*)/g
+		);
+
+		for (const match of functionMatches) {
+			const functionName = match[1];
+			const startColumn = match.index + match[0].indexOf(functionName) + 1;
+			const endColumn = startColumn + functionName.length;
+
+			const builtinFunc = gmlDefinitionsParser.getFunction(functionName);
+			if (builtinFunc && !builtinFunc.deprecated) {
+				diagnostics.push({
+					severity: 8,
+					message: `Cannot redefine built-in function '${functionName}'`,
+					startLineNumber: lineNumber,
+					startColumn: startColumn,
+					endLineNumber: lineNumber,
+					endColumn: endColumn,
+					code: 'builtin-function-redeclaration',
+				});
+			}
+
+			// Check if it's an asset name
+			if (gmlLanguage.assetNames.has(functionName)) {
+				diagnostics.push({
+					severity: 8,
+					message: `Cannot use asset name '${functionName}' as function name`,
+					startLineNumber: lineNumber,
+					startColumn: startColumn,
+					endLineNumber: lineNumber,
+					endColumn: endColumn,
+					code: 'asset-function-name-conflict',
+				});
+			}
+		}
+
+		return diagnostics;
+	}
+
+	/**
+	 * Check if an identifier is a language keyword
+	 */
+	isLanguageKeyword(identifier) {
+		const keywords = [
+			'if',
+			'else',
+			'while',
+			'for',
+			'do',
+			'until',
+			'repeat',
+			'switch',
+			'case',
+			'default',
+			'break',
+			'continue',
+			'exit',
+			'return',
+			'function',
+			'var',
+			'constructor',
+			'static',
+			'new',
+			'delete',
+			'try',
+			'catch',
+			'throw',
+			'finally',
+			'with',
+			'begin',
+			'end',
+			'then',
+			'not',
+			'and',
+			'or',
+			'xor',
+			'mod',
+			'div',
+			'true',
+			'false',
+			'undefined',
+			'noone',
+			'all',
+			'other',
+			'self',
+			'infinity',
+			'global',
+			'globalvar',
+			'enum',
+		];
+		return keywords.includes(identifier);
 	}
 
 	/**

@@ -11,6 +11,8 @@ class GMLLanguageDefinition {
 		this.userEnums = new Set();
 		this.localVariables = new Map();
 		this.functionParameters = new Map();
+
+		this.assetNames = new Set();
 	}
 
 	addUserMacro(name) {
@@ -33,6 +35,51 @@ class GMLLanguageDefinition {
 			this.functionParameters.set(functionName, new Set());
 		}
 		this.functionParameters.get(functionName).add(paramName);
+	}
+
+	/**
+	 * Updates the asset names for syntax highlighting
+	 * @param {Object} assets - Asset data from the main process containing objects, sprites, sounds, etc.
+	 */
+	updateAssets(assets) {
+		this.assetNames.clear();
+
+		if (assets) {
+			const allAssets = [
+				...(assets.objects || []),
+				...(assets.sprites || []),
+				...(assets.sounds || []),
+				...(assets.paths || []),
+				...(assets.rooms || []),
+				...(assets.sequences || []),
+				...(assets.shaders || []),
+				...(assets.tilesets || []),
+				...(assets.fonts || []),
+				...(assets.timelines || []),
+			];
+
+			allAssets.forEach((assetName) => {
+				if (assetName && typeof assetName === 'string') {
+					this.assetNames.add(assetName);
+				}
+			});
+		}
+		// Update the tokenizer with new assets
+		this.updateTokenizer(window.monaco);
+
+		// Force re-tokenization by triggering a model update
+		if (window.monaco && window.monaco.editor) {
+			const models = window.monaco.editor.getModels();
+			models.forEach((model) => {
+				if (model.getLanguageId() === 'gml') {
+					// Force retokenization by setting language again
+					window.monaco.editor.setModelLanguage(model, 'plaintext');
+					setTimeout(() => {
+						window.monaco.editor.setModelLanguage(model, 'gml');
+					}, 50);
+				}
+			});
+		}
 	}
 
 	isUserMacro(name) {
@@ -85,6 +132,7 @@ class GMLLanguageDefinition {
 		const builtinConstants = Array.from(this.constants);
 		const userMacros = Array.from(this.userMacros);
 		const userEnums = Array.from(this.userEnums);
+		const assetNames = Array.from(this.assetNames);
 
 		const userLocalVars = [];
 		for (const scopeVars of this.localVariables.values()) {
@@ -156,6 +204,7 @@ class GMLLanguageDefinition {
 			userMacros: userMacros,
 			userEnums: userEnums,
 			userLocalVars: userLocalVars,
+			assetNames: assetNames,
 
 			operators: [
 				'=',
@@ -273,6 +322,7 @@ class GMLLanguageDefinition {
 								'@builtinConstants': 'constant.builtin',
 								'@userMacros': 'atom',
 								'@userEnums': 'atom',
+								'@assetNames': 'atom',
 								'@userLocalVars': 'variable.local',
 								'@default': 'identifier',
 							},
