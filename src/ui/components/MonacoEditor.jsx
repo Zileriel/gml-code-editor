@@ -196,86 +196,179 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 	// Track current file symbols
 	const debouncedUpdateSymbols = useRef();
 
-	// Extract symbols from GML content
-	const extractSymbols = useCallback((content) => {
-		if (!content || typeof content !== 'string') return null;
+	// Remove GameMaker comments from text while preserving line structure
+	const removeGameMakerComments = useCallback((text) => {
+		let result = '';
+		let inBlockComment = false;
+		let inString = false;
+		let stringChar = '';
+		let escaped = false;
 
-		const symbols = {
-			macros: [],
-			enums: [],
-			functions: [],
-			globals: [],
-			globalvars: [],
-		};
+		for (let i = 0; i < text.length; i++) {
+			const char = text[i];
+			const nextChar = i + 1 < text.length ? text[i + 1] : '';
 
-		// Extract macros
-		const macroMatches = content.match(/#macro\s+([a-zA-Z_][a-zA-Z0-9_]*)/g);
-		if (macroMatches) {
-			macroMatches.forEach((match) => {
-				const nameMatch = match.match(/#macro\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
-				if (nameMatch) {
-					symbols.macros.push({ name: nameMatch[1], type: 'macro' });
+			if (escaped) {
+				escaped = false;
+				result += inString ? ' ' : char;
+				continue;
+			}
+
+			if (char === '\\' && inString) {
+				escaped = true;
+				result += ' ';
+				continue;
+			}
+
+			if (!inBlockComment && !inString && (char === '"' || char === "'")) {
+				inString = true;
+				stringChar = char;
+				result += ' ';
+				continue;
+			}
+
+			if (inString && char === stringChar) {
+				inString = false;
+				stringChar = '';
+				result += ' ';
+				continue;
+			}
+
+			if (inString) {
+				result += ' ';
+				continue;
+			}
+
+			// Handle block comments
+			if (!inBlockComment && char === '/' && nextChar === '*') {
+				inBlockComment = true;
+				result += '  '; // Replace /* with spaces
+				i++; // Skip the *
+				continue;
+			}
+
+			if (inBlockComment && char === '*' && nextChar === '/') {
+				inBlockComment = false;
+				result += '  '; // Replace */ with spaces
+				i++; // Skip the /
+				continue;
+			}
+
+			if (inBlockComment) {
+				// Preserve newlines in block comments
+				result += char === '\n' ? '\n' : ' ';
+				continue;
+			}
+
+			// Handle line comments
+			if (char === '/' && nextChar === '/') {
+				// Replace everything to end of line with spaces
+				while (i < text.length && text[i] !== '\n') {
+					result += text[i] === '\n' ? '\n' : ' ';
+					i++;
 				}
-			});
+				i--; // Adjust for the loop increment
+				continue;
+			}
+
+			result += char;
 		}
 
-		// Extract enums
-		const enumMatches = content.match(/enum\s+([a-zA-Z_][a-zA-Z0-9_]*)/g);
-		if (enumMatches) {
-			enumMatches.forEach((match) => {
-				const nameMatch = match.match(/enum\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
-				if (nameMatch) {
-					symbols.enums.push({ name: nameMatch[1], type: 'enum' });
-				}
-			});
-		}
-
-		// Extract functions
-		const functionMatches = content.match(
-			/function\s+([a-zA-Z_][a-zA-Z0-9_]*)/g
-		);
-		if (functionMatches) {
-			functionMatches.forEach((match) => {
-				const nameMatch = match.match(/function\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
-				if (nameMatch) {
-					symbols.functions.push({ name: nameMatch[1], type: 'function' });
-				}
-			});
-		}
-
-		// Extract globals
-		const globalMatches = content.match(/global\.([a-zA-Z_][a-zA-Z0-9_]*)/g);
-		if (globalMatches) {
-			const uniqueGlobals = new Set();
-			globalMatches.forEach((match) => {
-				const nameMatch = match.match(/global\.([a-zA-Z_][a-zA-Z0-9_]*)/);
-				if (nameMatch) {
-					uniqueGlobals.add(nameMatch[1]);
-				}
-			});
-			uniqueGlobals.forEach((name) => {
-				symbols.globals.push({ name, type: 'global' });
-			});
-		}
-
-		// Extract globalvars
-		const globalvarMatches = content.match(/globalvar\s+([^;]+);/g);
-		if (globalvarMatches) {
-			globalvarMatches.forEach((match) => {
-				const varMatch = match.match(/globalvar\s+([^;]+)/);
-				if (varMatch) {
-					const vars = varMatch[1].split(',').map((v) => v.trim());
-					vars.forEach((varName) => {
-						if (varName && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(varName)) {
-							symbols.globalvars.push({ name: varName, type: 'globalvar' });
-						}
-					});
-				}
-			});
-		}
-
-		return symbols;
+		return result;
 	}, []);
+
+	// Extract symbols from GML content
+	const extractSymbols = useCallback(
+		(content) => {
+			if (!content || typeof content !== 'string') return null;
+
+			const symbols = {
+				macros: [],
+				enums: [],
+				functions: [],
+				globals: [],
+				globalvars: [],
+			};
+
+			// Remove comments before parsing
+			const cleanContent = removeGameMakerComments(content);
+
+			// Extract macros
+			const macroMatches = cleanContent.match(
+				/#macro\s+([a-zA-Z_][a-zA-Z0-9_]*)/g
+			);
+			if (macroMatches) {
+				macroMatches.forEach((match) => {
+					const nameMatch = match.match(/#macro\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+					if (nameMatch) {
+						symbols.macros.push({ name: nameMatch[1], type: 'macro' });
+					}
+				});
+			}
+
+			// Extract enums
+			const enumMatches = cleanContent.match(
+				/enum\s+([a-zA-Z_][a-zA-Z0-9_]*)/g
+			);
+			if (enumMatches) {
+				enumMatches.forEach((match) => {
+					const nameMatch = match.match(/enum\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+					if (nameMatch) {
+						symbols.enums.push({ name: nameMatch[1], type: 'enum' });
+					}
+				});
+			}
+
+			// Extract functions
+			const functionMatches = cleanContent.match(
+				/function\s+([a-zA-Z_][a-zA-Z0-9_]*)/g
+			);
+			if (functionMatches) {
+				functionMatches.forEach((match) => {
+					const nameMatch = match.match(/function\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+					if (nameMatch) {
+						symbols.functions.push({ name: nameMatch[1], type: 'function' });
+					}
+				});
+			}
+
+			// Extract globals
+			const globalMatches = cleanContent.match(
+				/global\.([a-zA-Z_][a-zA-Z0-9_]*)/g
+			);
+			if (globalMatches) {
+				const uniqueGlobals = new Set();
+				globalMatches.forEach((match) => {
+					const nameMatch = match.match(/global\.([a-zA-Z_][a-zA-Z0-9_]*)/);
+					if (nameMatch) {
+						uniqueGlobals.add(nameMatch[1]);
+					}
+				});
+				uniqueGlobals.forEach((name) => {
+					symbols.globals.push({ name, type: 'global' });
+				});
+			}
+
+			// Extract globalvars
+			const globalvarMatches = cleanContent.match(/globalvar\s+([^;]+);/g);
+			if (globalvarMatches) {
+				globalvarMatches.forEach((match) => {
+					const varMatch = match.match(/globalvar\s+([^;]+)/);
+					if (varMatch) {
+						const vars = varMatch[1].split(',').map((v) => v.trim());
+						vars.forEach((varName) => {
+							if (varName && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(varName)) {
+								symbols.globalvars.push({ name: varName, type: 'globalvar' });
+							}
+						});
+					}
+				});
+			}
+
+			return symbols;
+		},
+		[removeGameMakerComments]
+	);
 
 	// Update symbols using preload.js methods
 	const updateSymbols = useCallback(
@@ -851,16 +944,31 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 									}
 								}
 
-								// Get function info from definitions
-								const func = gmlDefinitionsParser.getFunction(funcName);
+								// Get function info from built-in definitions first
+								let func = gmlDefinitionsParser.getFunction(funcName);
+								let isUserFunction = false;
+
+								// If not found, check user-defined functions
+								if (!func && window.definitions) {
+									const userFunc = window.definitions.findDefinition(funcName);
+									if (userFunc && userFunc.parameters) {
+										func = {
+											name: userFunc.name,
+											parameters: userFunc.parameters || [],
+										};
+										isUserFunction = true;
+									}
+								}
+
 								if (func) {
 									functionCallInfo = {
 										functionName: func.name,
-										parameters: func.parameters,
+										parameters: func.parameters || [],
 										activeParameter: Math.min(
 											commaCount,
-											func.parameters.length - 1
+											(func.parameters || []).length - 1
 										),
+										isUserFunction: isUserFunction,
 									};
 								}
 							}

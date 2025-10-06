@@ -375,15 +375,65 @@ class GMLCompletionProvider {
 				  }`
 				: `${func.location?.file || 'unknown'}:${func.location?.line || 0}`;
 
+			// Build function signature for completion
+			let insertText = func.name;
+			let insertTextRules =
+				window.monaco?.languages?.CompletionItemInsertTextRule?.None || 0;
+			let detail = 'User Function';
+
+			// Enhanced function completion with parameters
+			if (func.parameters && func.parameters.length > 0) {
+				const requiredParams = func.parameters.filter((p) => !p.optional);
+				if (requiredParams.length > 0) {
+					const params = requiredParams
+						.map((param, index) => `\${${index + 1}:${param.name}}`)
+						.join(', ');
+					insertText = `${func.name}(${params})`;
+					insertTextRules =
+						window.monaco?.languages?.CompletionItemInsertTextRule
+							?.InsertAsSnippet || 4;
+				} else {
+					insertText = `${func.name}()`;
+				}
+
+				// Create detailed signature for display
+				const paramTypes = func.parameters.map(
+					(p) => `${p.name}: ${p.type || 'any'}`
+				);
+				detail = `${func.name}(${paramTypes.join(', ')})`;
+				if (func.returnType && func.returnType !== 'any') {
+					detail += ` → ${func.returnType}`;
+				}
+			} else {
+				insertText = `${func.name}()`;
+			}
+
+			let documentation = `User function defined in ${location}`;
+			if (func.description) {
+				documentation = `${func.description}\n\nDefined in: ${location}`;
+			}
+			if (func.parameters && func.parameters.length > 0) {
+				const paramDocs = func.parameters
+					.map(
+						(p) =>
+							`• **${p.name}** (${p.type || 'any'}): ${
+								p.description || 'No description'
+							}`
+					)
+					.join('\n');
+				documentation += `\n\n**Parameters:**\n${paramDocs}`;
+			}
+
 			this.userSymbolCompletions.push({
 				label: func.name,
 				kind: window.monaco?.languages?.CompletionItemKind?.Function || 1,
-				detail: 'Function',
+				detail: detail,
 				documentation: {
-					value: `Function defined in ${location}`,
+					value: documentation,
 					isTrusted: true,
 				},
-				insertText: `${func.name}()`,
+				insertText: insertText,
+				insertTextRules: insertTextRules,
 				sortText: '1' + func.name,
 			});
 		});

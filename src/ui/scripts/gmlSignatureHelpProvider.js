@@ -21,10 +21,29 @@ class GMLSignatureHelpProvider {
 		const functionCall = this.findCurrentFunctionCall(text, offset);
 		if (!functionCall) return null;
 
-		const func = gmlDefinitionsParser.getFunction(functionCall.functionName);
+		// Check for built-in functions first
+		let func = gmlDefinitionsParser.getFunction(functionCall.functionName);
+		let isUserFunction = false;
+
+		// If not found in built-ins, check user-defined functions
+		if (!func && window.definitions) {
+			const userFunc = window.definitions.findDefinition(
+				functionCall.functionName
+			);
+			if (userFunc && userFunc.parameters) {
+				func = {
+					name: userFunc.name,
+					parameters: userFunc.parameters || [],
+					returnType: userFunc.returnType || 'any',
+					description: userFunc.description || 'User-defined function',
+				};
+				isUserFunction = true;
+			}
+		}
+
 		if (!func) return null;
 
-		const signature = this.createSignatureInformation(func);
+		const signature = this.createSignatureInformation(func, isUserFunction);
 		const activeParameter = this.calculateActiveParameter(
 			functionCall.parametersText,
 			functionCall.currentPosition
@@ -33,7 +52,10 @@ class GMLSignatureHelpProvider {
 		return {
 			signatures: [signature],
 			activeSignature: 0,
-			activeParameter: Math.min(activeParameter, func.parameters.length - 1),
+			activeParameter: Math.min(
+				activeParameter,
+				(func.parameters || []).length - 1
+			),
 		};
 	}
 
@@ -158,32 +180,38 @@ class GMLSignatureHelpProvider {
 		return paramIndex;
 	}
 
-	createSignatureInformation(func) {
-		const paramLabels = func.parameters.map((p) => {
+	createSignatureInformation(func, isUserFunction = false) {
+		const parameters = func.parameters || [];
+		const paramLabels = parameters.map((p) => {
 			const optional = p.optional ? '?' : '';
-			return `${p.name}${optional}: ${p.type}`;
+			const type = p.type || 'any';
+			return `${p.name}${optional}: ${type}`;
 		});
 
-		const label = `${func.name}(${paramLabels.join(', ')}) → ${
-			func.returnType
-		}`;
+		const returnType = func.returnType || 'any';
+		const label = `${func.name}(${paramLabels.join(', ')}) → ${returnType}`;
 
-		const parameters = func.parameters.map((param, index) => ({
-			label: [
-				label.indexOf(param.name),
-				label.indexOf(param.name) + param.name.length,
-			],
-			documentation: {
-				value: param.description || 'No description available',
-			},
-		}));
+		const parameterInfos = parameters.map((param, index) => {
+			const paramStartIndex = label.indexOf(param.name);
+			return {
+				label: [paramStartIndex, paramStartIndex + param.name.length],
+				documentation: {
+					value: param.description || 'No description available',
+				},
+			};
+		});
+
+		let documentation = func.description || 'No description available';
+		if (isUserFunction) {
+			documentation = `**User Function**\n\n${documentation}`;
+		}
 
 		return {
 			label: label,
 			documentation: {
-				value: func.description || 'No description available',
+				value: documentation,
 			},
-			parameters: parameters,
+			parameters: parameterInfos,
 		};
 	}
 
@@ -194,7 +222,23 @@ class GMLSignatureHelpProvider {
 
 		if (!functionCall) return null;
 
-		const func = gmlDefinitionsParser.getFunction(functionCall.functionName);
+		// Check built-in functions first
+		let func = gmlDefinitionsParser.getFunction(functionCall.functionName);
+
+		// If not found, check user-defined functions
+		if (!func && window.definitions) {
+			const userFunc = window.definitions.findDefinition(
+				functionCall.functionName
+			);
+			if (userFunc && userFunc.parameters) {
+				func = {
+					name: userFunc.name,
+					parameters: userFunc.parameters || [],
+					signature: this.buildUserFunctionSignature(userFunc),
+				};
+			}
+		}
+
 		if (!func) return null;
 
 		const activeParameter = this.calculateActiveParameter(
@@ -204,10 +248,16 @@ class GMLSignatureHelpProvider {
 
 		return {
 			functionName: func.name,
-			parameters: func.parameters,
+			parameters: func.parameters || [],
 			activeParameter: activeParameter,
-			signature: func.signature,
+			signature: func.signature || func.name + '()',
 		};
+	}
+
+	buildUserFunctionSignature(userFunc) {
+		const parameters = userFunc.parameters || [];
+		const paramNames = parameters.map((p) => `${p.name}: ${p.type || 'any'}`);
+		return `${userFunc.name}(${paramNames.join(', ')})`;
 	}
 }
 

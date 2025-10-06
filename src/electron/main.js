@@ -640,6 +640,236 @@ async function scanSprites(spritesPath) {
 }
 
 /**
+ * Remove GameMaker comments from text while preserving line structure
+ * @param {string} text - The text to process
+ * @returns {string} Text with comments replaced by spaces
+ */
+function removeGameMakerComments(text) {
+	let result = '';
+	let inBlockComment = false;
+	let inString = false;
+	let stringChar = '';
+	let escaped = false;
+
+	for (let i = 0; i < text.length; i++) {
+		const char = text[i];
+		const nextChar = i + 1 < text.length ? text[i + 1] : '';
+		const prevChar = i > 0 ? text[i - 1] : '';
+
+		if (escaped) {
+			escaped = false;
+			result += inString ? ' ' : char;
+			continue;
+		}
+
+		if (char === '\\' && inString) {
+			escaped = true;
+			result += ' ';
+			continue;
+		}
+
+		if (!inBlockComment && !inString && (char === '"' || char === "'")) {
+			inString = true;
+			stringChar = char;
+			result += ' ';
+			continue;
+		}
+
+		if (inString && char === stringChar) {
+			inString = false;
+			stringChar = '';
+			result += ' ';
+			continue;
+		}
+
+		if (inString) {
+			result += ' ';
+			continue;
+		}
+
+		// Handle block comments
+		if (!inBlockComment && char === '/' && nextChar === '*') {
+			inBlockComment = true;
+			result += '  '; // Replace /* with spaces
+			i++; // Skip the *
+			continue;
+		}
+
+		if (inBlockComment && char === '*' && nextChar === '/') {
+			inBlockComment = false;
+			result += '  '; // Replace */ with spaces
+			i++; // Skip the /
+			continue;
+		}
+
+		if (inBlockComment) {
+			// Preserve newlines in block comments
+			result += char === '\n' ? '\n' : ' ';
+			continue;
+		}
+
+		// Handle line comments
+		if (char === '/' && nextChar === '/') {
+			// Replace everything to end of line with spaces
+			while (i < text.length && text[i] !== '\n') {
+				result += text[i] === '\n' ? '\n' : ' ';
+				i++;
+			}
+			i--; // Adjust for the loop increment
+			continue;
+		}
+
+		result += char;
+	}
+
+	return result;
+}
+
+/**
+ * Parse JSDoc comments for function documentation
+ * @param {Array} lines - Array of code lines
+ * @param {number} functionLineIndex - Line index where function is declared
+ * @returns {Object|null} Parsed JSDoc information or null
+ */
+function parseJSDoc(lines, functionLineIndex) {
+	const jsdoc = {
+		description: '',
+		params: [],
+		returns: null,
+	};
+
+	let foundJSDoc = false;
+	let currentLineIndex = functionLineIndex - 1;
+
+	// Look backwards for JSDoc comments
+	while (currentLineIndex >= 0) {
+		const line = lines[currentLineIndex].trim();
+
+		// Check for /** style JSDoc end
+		if (line.endsWith('*/')) {
+			foundJSDoc = true;
+			break;
+		}
+
+		// Check for /// style JSDoc
+		if (line.startsWith('///')) {
+			foundJSDoc = true;
+			break;
+		}
+
+		// If we hit a non-whitespace, non-comment line, stop looking
+		if (
+			line &&
+			!line.startsWith('//') &&
+			!line.startsWith('*') &&
+			line !== ''
+		) {
+			break;
+		}
+
+		currentLineIndex--;
+	}
+
+	if (!foundJSDoc) {
+		return null;
+	}
+
+	// Parse the JSDoc block
+	let parseStartIndex = currentLineIndex;
+	let isBlockComment = false;
+
+	// Determine if it's a block comment or line comments
+	const startLine = lines[currentLineIndex].trim();
+	if (startLine.includes('/**') || startLine.endsWith('*/')) {
+		isBlockComment = true;
+		// Find the start of the block comment
+		while (
+			parseStartIndex >= 0 &&
+			!lines[parseStartIndex].trim().includes('/**')
+		) {
+			parseStartIndex--;
+		}
+	}
+
+	// Parse JSDoc content
+	for (let i = parseStartIndex; i < functionLineIndex; i++) {
+		const line = lines[i].trim();
+
+		// Skip comment markers
+		let content = line;
+		if (isBlockComment) {
+			content = content.replace(/^\/\*\*|^\*\/|^\*\s?/, '');
+		} else {
+			content = content.replace(/^\/\/\/\s?/, '');
+		}
+
+		if (!content) continue;
+
+		// Parse @description or @desc
+		const descMatch = content.match(/^@(?:description|desc)\s+(.+)$/);
+		if (descMatch) {
+			jsdoc.description = descMatch[1];
+			continue;
+		}
+
+		// Parse @param or @arg
+		const paramMatch = content.match(
+			/^@(?:param|arg)\s+\{([^}]+)\}\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*-?\s*(.*)$/
+		);
+		if (paramMatch) {
+			jsdoc.params.push({
+				type: paramMatch[1],
+				name: paramMatch[2],
+				description: paramMatch[3] || '',
+			});
+			continue;
+		}
+
+		// Parse @returns or @return
+		const returnMatch = content.match(
+			/^@(?:returns?|return)\s+\{([^}]+)\}\s*(.*)$/
+		);
+		if (returnMatch) {
+			jsdoc.returns = {
+				type: returnMatch[1],
+				description: returnMatch[2] || '',
+			};
+			continue;
+		}
+
+		// If no specific tag, add to description
+		if (!jsdoc.description && content && !content.startsWith('@')) {
+			jsdoc.description = content;
+		}
+	}
+
+	return jsdoc.description || jsdoc.params.length > 0 || jsdoc.returns
+		? jsdoc
+		: null;
+}
+
+/**
+ * Extract function parameters from function declaration
+ * @param {string} functionDeclaration - The function declaration line
+ * @returns {Array} Array of parameter objects
+ */
+function extractFunctionParameters(functionDeclaration) {
+	const paramMatch = functionDeclaration.match(
+		/function\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\(([^)]*)\)/
+	);
+	if (!paramMatch || !paramMatch[1].trim()) {
+		return [];
+	}
+
+	const paramString = paramMatch[1].trim();
+	return paramString
+		.split(',')
+		.map((param) => param.trim())
+		.filter((param) => param && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(param))
+		.map((param) => ({ name: param, type: 'any', optional: false }));
+}
+
+/**
  * Extract definitions from GML content
  * @param {string} content - GML code content
  * @param {string} assetName - Name of the asset (script or object)
@@ -658,11 +888,16 @@ function extractDefinitions(content, assetName, eventName = null) {
 	if (!content) return definitions;
 
 	const lines = content.split('\n');
+	const cleanedContent = removeGameMakerComments(content);
+	const cleanedLines = cleanedContent.split('\n');
 
-	lines.forEach((line, index) => {
+	cleanedLines.forEach((line, index) => {
 		const lineNumber = index + 1;
+		const trimmedLine = line.trim();
 
-		const macroMatch = line.match(/#macro\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+		if (!trimmedLine) return;
+
+		const macroMatch = trimmedLine.match(/#macro\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
 		if (macroMatch) {
 			definitions.macros.push({
 				name: macroMatch[1],
@@ -673,11 +908,11 @@ function extractDefinitions(content, assetName, eventName = null) {
 					assetName,
 					eventName,
 				},
-				content: line.trim(),
+				content: lines[index].trim(), // Use original line for content
 			});
 		}
 
-		const enumMatch = line.match(/enum\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+		const enumMatch = trimmedLine.match(/enum\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
 		if (enumMatch) {
 			definitions.enums.push({
 				name: enumMatch[1],
@@ -688,12 +923,44 @@ function extractDefinitions(content, assetName, eventName = null) {
 					assetName,
 					eventName,
 				},
-				content: line.trim(),
+				content: lines[index].trim(), // Use original line for content
 			});
 		}
 
-		const functionMatch = line.match(/function\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+		const functionMatch = trimmedLine.match(
+			/function\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)/
+		);
 		if (functionMatch) {
+			// Parse JSDoc if available
+			const jsdoc = parseJSDoc(lines, index);
+
+			// Extract parameters from function declaration
+			const extractedParams = extractFunctionParameters(lines[index]);
+
+			// Merge JSDoc params with extracted params
+			let parameters = extractedParams;
+			if (jsdoc && jsdoc.params.length > 0) {
+				// Use JSDoc params if available, fall back to extracted params
+				parameters = jsdoc.params.map((jsdocParam) => {
+					const extractedParam = extractedParams.find(
+						(p) => p.name === jsdocParam.name
+					);
+					return {
+						name: jsdocParam.name,
+						type: jsdocParam.type || 'any',
+						description: jsdocParam.description || '',
+						optional: false, // GameMaker doesn't have optional params, but JSDoc might indicate this
+					};
+				});
+
+				// Add any extracted params not in JSDoc
+				extractedParams.forEach((param) => {
+					if (!parameters.find((p) => p.name === param.name)) {
+						parameters.push(param);
+					}
+				});
+			}
+
 			definitions.functions.push({
 				name: functionMatch[1],
 				location: {
@@ -703,11 +970,18 @@ function extractDefinitions(content, assetName, eventName = null) {
 					assetName,
 					eventName,
 				},
-				content: line.trim(),
+				content: lines[index].trim(), // Use original line for content
+				parameters: parameters,
+				description: jsdoc?.description || '',
+				returnType: jsdoc?.returns?.type || 'any',
+				returnDescription: jsdoc?.returns?.description || '',
+				jsdoc: jsdoc,
 			});
 		}
 
-		const globalMatch = line.match(/global\.([a-zA-Z_][a-zA-Z0-9_]*)\s*=/);
+		const globalMatch = trimmedLine.match(
+			/global\.([a-zA-Z_][a-zA-Z0-9_]*)\s*=/
+		);
 		if (globalMatch) {
 			definitions.globals.push({
 				name: globalMatch[1],
@@ -718,12 +992,12 @@ function extractDefinitions(content, assetName, eventName = null) {
 					assetName,
 					eventName,
 				},
-				content: line.trim(),
+				content: lines[index].trim(), // Use original line for content
 			});
 		}
 
 		// Handle globalvar declarations (can be multiple in one line)
-		const globalvarMatch = line.match(
+		const globalvarMatch = trimmedLine.match(
 			/globalvar\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*)/
 		);
 		if (globalvarMatch) {
@@ -741,7 +1015,7 @@ function extractDefinitions(content, assetName, eventName = null) {
 							assetName,
 							eventName,
 						},
-						content: line.trim(),
+						content: lines[index].trim(), // Use original line for content
 					});
 				}
 			});
@@ -750,7 +1024,6 @@ function extractDefinitions(content, assetName, eventName = null) {
 
 	return definitions;
 }
-
 /**
  * Gets asset names from a given asset folder
  * @param {string} assetPath - Path to the asset folder

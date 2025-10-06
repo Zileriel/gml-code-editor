@@ -105,8 +105,84 @@ class GMLLintingProvider {
 			trimmed === '' ||
 			trimmed.startsWith('//') ||
 			trimmed.startsWith('/*') ||
-			trimmed.startsWith('*')
+			trimmed.startsWith('*') ||
+			trimmed.endsWith('*/')
 		);
+	}
+
+	/**
+	 * Check if a position in the text is inside a comment
+	 * @param {string} text - The full text
+	 * @param {number} position - Character position to check
+	 * @returns {boolean} True if position is inside a comment
+	 */
+	isPositionInComment(text, position) {
+		let inBlockComment = false;
+		let inString = false;
+		let stringChar = '';
+		let escaped = false;
+
+		for (let i = 0; i < Math.min(position, text.length); i++) {
+			const char = text[i];
+			const nextChar = i + 1 < text.length ? text[i + 1] : '';
+
+			if (escaped) {
+				escaped = false;
+				continue;
+			}
+
+			if (char === '\\' && inString) {
+				escaped = true;
+				continue;
+			}
+
+			if (!inBlockComment && !inString && (char === '"' || char === "'")) {
+				inString = true;
+				stringChar = char;
+				continue;
+			}
+
+			if (inString && char === stringChar) {
+				inString = false;
+				stringChar = '';
+				continue;
+			}
+
+			if (inString) {
+				continue;
+			}
+
+			// Handle block comments
+			if (!inBlockComment && char === '/' && nextChar === '*') {
+				inBlockComment = true;
+				i++; // Skip the *
+				continue;
+			}
+
+			if (inBlockComment && char === '*' && nextChar === '/') {
+				inBlockComment = false;
+				i++; // Skip the /
+				continue;
+			}
+
+			// Handle line comments
+			if (!inBlockComment && char === '/' && nextChar === '/') {
+				// Check if position is on this line
+				const lineStart = i;
+				let lineEnd = i;
+				while (lineEnd < text.length && text[lineEnd] !== '\n') {
+					lineEnd++;
+				}
+				if (position >= lineStart && position < lineEnd) {
+					return true;
+				}
+				// Skip to end of line
+				i = lineEnd - 1; // -1 because loop will increment
+				continue;
+			}
+		}
+
+		return inBlockComment;
 	}
 
 	/**
@@ -291,6 +367,12 @@ class GMLLintingProvider {
 			if (char === '\n') {
 				currentLine++;
 				currentColumn = 1;
+				continue;
+			}
+
+			// Skip if position is in a comment
+			if (this.isPositionInComment(text, i)) {
+				currentColumn++;
 				continue;
 			}
 

@@ -99,7 +99,7 @@ class GMLHoverProvider {
 				.map(
 					(p) =>
 						`• **${p.name}** (${p.type}${p.optional ? ', optional' : ''}): ${
-							p.description || 'No description'
+							p.description || ''
 						}`
 				)
 				.join('\n\n');
@@ -192,12 +192,68 @@ class GMLHoverProvider {
 			else if (symbol.content.startsWith('function')) symbolType = 'Function';
 		}
 
-		// Show definition content
-		if (symbol.content) {
-			contents.push({
-				value: `\`\`\`gml\n${symbol.content}\n\`\`\``,
-				isTrusted: true,
+		// Enhanced function hover
+		if (symbolType === 'Function' && symbol.parameters) {
+			// Create function signature
+			const parameters = symbol.parameters || [];
+			const paramLabels = parameters.map((p) => {
+				const type = p.type || 'any';
+				return `${p.name}: ${type}`;
 			});
+
+			const returnType = symbol.returnType || 'any';
+			const signature = `**${symbol.name}**(${paramLabels.join(
+				', '
+			)}) → ${returnType}`;
+			contents.push({ value: signature });
+
+			// Add description if available
+			if (symbol.description) {
+				contents.push({ value: symbol.description });
+			}
+
+			// Add parameter documentation
+			if (parameters.length > 0) {
+				const paramDocs = parameters
+					.map(
+						(p) =>
+							`• **${p.name}** (${p.type || 'any'}): ${
+								p.description || 'No description'
+							}`
+					)
+					.join('\n\n');
+				contents.push({
+					value: `**Parameters:**\n\n${paramDocs}`,
+				});
+			}
+
+			// Add return information
+			if (symbol.returnDescription) {
+				contents.push({
+					value: `**Returns:** ${symbol.returnDescription}`,
+				});
+			}
+
+			// Show location
+			if (symbol.location) {
+				const location = symbol.location.assetName
+					? `${symbol.location.assetName}${
+							symbol.location.eventName ? ` (${symbol.location.eventName})` : ''
+					  }`
+					: `${symbol.location.file || 'unknown'}:${symbol.location.line || 0}`;
+				contents.push({
+					value: `*Defined in: ${location}*`,
+					isTrusted: true,
+				});
+			}
+		} else {
+			// Standard symbol hover
+			if (symbol.content) {
+				contents.push({
+					value: `\`\`\`gml\n${symbol.content}\n\`\`\``,
+					isTrusted: true,
+				});
+			}
 		}
 
 		// Add go-to-definition action hint
