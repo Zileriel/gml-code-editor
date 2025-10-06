@@ -1000,7 +1000,7 @@ main {
 .file-name {
 	flex: 1;
 	font-weight: 500;
-	font-size: 0.80rem;
+	font-size: 0.8rem;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;

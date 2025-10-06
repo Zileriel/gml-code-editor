@@ -10,7 +10,7 @@ import Topbar from './views/Topbar';
 
 // Inner component to access contexts
 function AppContent() {
-	const { switchToSearch } = useMainView();
+	const { switchToSearch, switchToExplorer } = useMainView();
 	const { editorInstance } = useEditor();
 
 	useEffect(() => {
@@ -18,24 +18,31 @@ function AppContent() {
 			// Ctrl/Cmd + Shift + F for search
 			if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
 				e.preventDefault();
-				
+
 				// Get selected text from Monaco editor if available
 				let selectedText = '';
 				if (editorInstance) {
 					const selection = editorInstance.getSelection();
 					if (selection && !selection.isEmpty()) {
-						selectedText = editorInstance.getModel()?.getValueInRange(selection) || '';
+						selectedText =
+							editorInstance.getModel()?.getValueInRange(selection) || '';
 					}
 				}
-				
+
 				// Switch to search view with selected text
 				switchToSearch(selectedText);
+			}
+			
+			// Ctrl/Cmd + Shift + E for explorer
+			if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'E') {
+				e.preventDefault();
+				switchToExplorer();
 			}
 		};
 
 		document.addEventListener('keydown', handleKeyDown);
 		return () => document.removeEventListener('keydown', handleKeyDown);
-	}, [switchToSearch, editorInstance]);
+	}, [switchToSearch, switchToExplorer, editorInstance]);
 
 	return (
 		<main>

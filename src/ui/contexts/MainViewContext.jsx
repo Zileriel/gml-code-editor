@@ -18,7 +18,7 @@ export const useMainView = () => {
 
 export const MainViewProvider = ({ children }) => {
 	const [activeView, setActiveView] = useState(VIEW_TYPES.EXPLORER);
-	
+
 	// Persistent search state
 	const [searchState, setSearchState] = useState({
 		searchTerm: '',
@@ -38,7 +38,7 @@ export const MainViewProvider = ({ children }) => {
 		setActiveView(VIEW_TYPES.SEARCH);
 		// If selected text is provided, update search term
 		if (selectedText) {
-			setSearchState(prev => ({
+			setSearchState((prev) => ({
 				...prev,
 				searchTerm: selectedText,
 			}));
@@ -46,7 +46,7 @@ export const MainViewProvider = ({ children }) => {
 	};
 
 	const updateSearchState = (newState) => {
-		setSearchState(prev => ({
+		setSearchState((prev) => ({
 			...prev,
 			...newState,
 		}));
