@@ -1156,5 +1156,123 @@ ipcMain.handle('menu:open-recent-project', async (event, projectPath) => {
 
 	return projectData;
 });
+
+ipcMain.handle('api:replace-in-files', async (event, replaceOptions) => {
+	const { searchTerm, replaceTerm, matchCase, matchWholeWord, useRegex } = replaceOptions;
+	const currentProject = store.get('currentProject');
+	
+	if (!currentProject || !fs.existsSync(currentProject)) {
+		throw new Error('No project loaded or project path invalid');
+	}
+
+	let replacedCount = 0;
+	
+	try {
+		// Create search pattern
+		let searchPattern;
+		try {
+			if (useRegex) {
+				const flags = matchCase ? 'g' : 'gi';
+				searchPattern = new RegExp(searchTerm, flags);
+			} else {
+				const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+				let pattern = matchWholeWord ? `\\b${escapedTerm}\\b` : escapedTerm;
+				const flags = matchCase ? 'g' : 'gi';
+				searchPattern = new RegExp(pattern, flags);
+			}
+		} catch (error) {
+			// Invalid regex, fall back to literal search
+			const flags = matchCase ? 'g' : 'gi';
+			const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			searchPattern = new RegExp(escapedTerm, flags);
+		}
+
+		// Replace in script files
+		const scriptsPath = path.join(currentProject, 'scripts');
+		if (fs.existsSync(scriptsPath)) {
+			const scriptFolders = fs.readdirSync(scriptsPath, { withFileTypes: true })
+				.filter(dirent => dirent.isDirectory())
+				.map(dirent => dirent.name);
+
+			for (const scriptName of scriptFolders) {
+				const scriptPath = path.join(scriptsPath, scriptName, `${scriptName}.gml`);
+				if (fs.existsSync(scriptPath)) {
+					const content = fs.readFileSync(scriptPath, 'utf-8');
+					const matches = content.match(searchPattern);
+					if (matches) {
+						const newContent = content.replace(searchPattern, replaceTerm);
+						fs.writeFileSync(scriptPath, newContent, 'utf-8');
+						replacedCount += matches.length;
+					}
+				}
+			}
+		}
+
+		// Replace in object event files
+		const objectsPath = path.join(currentProject, 'objects');
+		if (fs.existsSync(objectsPath)) {
+			const objectFolders = fs.readdirSync(objectsPath, { withFileTypes: true })
+				.filter(dirent => dirent.isDirectory())
+				.map(dirent => dirent.name);
+
+			for (const objectName of objectFolders) {
+				const objectPath = path.join(objectsPath, objectName);
+				const files = fs.readdirSync(objectPath);
+				
+				const gmlFiles = files.filter(file => file.endsWith('.gml'));
+				for (const gmlFile of gmlFiles) {
+					const eventPath = path.join(objectPath, gmlFile);
+					const content = fs.readFileSync(eventPath, 'utf-8');
+					const matches = content.match(searchPattern);
+					if (matches) {
+						const newContent = content.replace(searchPattern, replaceTerm);
+						fs.writeFileSync(eventPath, newContent, 'utf-8');
+						replacedCount += matches.length;
+					}
+				}
+			}
+		}
+
+		// Replace in note files
+		const notesPath = path.join(currentProject, 'notes');
+		if (fs.existsSync(notesPath)) {
+			const noteFolders = fs.readdirSync(notesPath, { withFileTypes: true })
+				.filter(dirent => dirent.isDirectory())
+				.map(dirent => dirent.name);
+
+			for (const noteName of noteFolders) {
+				const notePath = path.join(notesPath, noteName, `${noteName}.txt`);
+				if (fs.existsSync(notePath)) {
+					const content = fs.readFileSync(notePath, 'utf-8');
+					const matches = content.match(searchPattern);
+					if (matches) {
+						const newContent = content.replace(searchPattern, replaceTerm);
+						fs.writeFileSync(notePath, newContent, 'utf-8');
+						replacedCount += matches.length;
+					}
+				}
+			}
+		}
+
+		return { success: true, replacedCount };
+	} catch (error) {
+		console.error('Replace operation failed:', error);
+		throw new Error(`Replace operation failed: ${error.message}`);
+	}
+});
+
+ipcMain.handle('api:get-current-project-data', async () => {
+	const currentProject = store.get('currentProject');
+	if (currentProject && fs.existsSync(currentProject)) {
+		try {
+			const projectData = await scanGameMakerProject(currentProject);
+			return projectData;
+		} catch (error) {
+			console.error('Failed to get current project data:', error);
+			return null;
+		}
+	}
+	return null;
+});
 //#endregion
 //#endregion

@@ -20,6 +20,31 @@ export default function Explorer() {
 	const { openFile, openObjectFiles, activeTab, openTabs } = useEditor();
 
 	useEffect(() => {
+		const initializeProjectData = async () => {
+			// First try to get from window.currentProjectData
+			if (window.currentProjectData) {
+				setProjectData(window.currentProjectData);
+				return;
+			}
+
+			// If not available, try to get current project data via API
+			if (window.api?.getCurrentProjectData) {
+				try {
+					const projectData = await window.api.getCurrentProjectData();
+					if (projectData) {
+						setProjectData(projectData);
+						// Also set it in window for future use
+						window.currentProjectData = projectData;
+					}
+				} catch (error) {
+					console.error('Explorer: Failed to get current project data:', error);
+				}
+			}
+		};
+
+		initializeProjectData();
+
+		// Listen for new project loads
 		if (window.api?.onProjectLoaded) {
 			const removeListener = window.api.onProjectLoaded((data) => {
 				setProjectData(data);

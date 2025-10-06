@@ -38,6 +38,14 @@ contextBridge.exposeInMainWorld('api', {
 			ipcRenderer.removeListener('project:loaded', listener);
 		};
 	},
+
+	replaceInFiles: (replaceOptions) => {
+		return ipcRenderer.invoke('api:replace-in-files', replaceOptions);
+	},
+
+	getCurrentProjectData: () => {
+		return ipcRenderer.invoke('api:get-current-project-data');
+	},
 });
 
 contextBridge.exposeInMainWorld('menu', {

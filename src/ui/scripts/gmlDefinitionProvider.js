@@ -26,11 +26,7 @@ class GMLDefinitionProvider {
 			return null;
 		}
 
-		// Definition providers should return locations for Monaco to handle,
-		// not open files directly. File opening should only happen on explicit
-		// user actions like Ctrl+Click or code actions.
-
-		return null; // We handle go-to-definition via Ctrl+Click and code actions instead
+		return null;
 	}
 }
 
