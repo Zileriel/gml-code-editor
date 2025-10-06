@@ -6,6 +6,7 @@ import React, {
 	useEffect,
 } from 'react';
 import gmlSymbolRegistry from '../scripts/gmlSymbolRegistry.js';
+import MonacoService from '../services/MonacoService.js';
 
 const EditorContext = createContext();
 
@@ -24,15 +25,41 @@ export const EditorProvider = ({ children }) => {
 	const [projectData, setProjectData] = useState(null);
 	const [pendingPosition, setPendingPosition] = useState(null);
 
-	// Listen for project loaded events
+	// Listen for project loaded events and initialize Monaco
 	useEffect(() => {
 		if (window.api?.onProjectLoaded) {
-			const removeListener = window.api.onProjectLoaded((data) => {
+			const removeListener = window.api.onProjectLoaded(async (data) => {
 				setProjectData(data);
+
+				// Initialize Monaco when project loads
+				try {
+					console.log('EditorContext: Project loaded, initializing Monaco...');
+					await MonacoService.initialize();
+					console.log('EditorContext: Monaco initialized successfully');
+				} catch (error) {
+					console.error('EditorContext: Failed to initialize Monaco:', error);
+				}
 			});
 
 			return removeListener;
 		}
+	}, []);
+
+	// Also initialize Monaco on component mount (fallback)
+	useEffect(() => {
+		const initMonaco = async () => {
+			try {
+				await MonacoService.initialize();
+			} catch (error) {
+				console.error(
+					'EditorContext: Failed to initialize Monaco on mount:',
+					error
+				);
+			}
+		};
+
+		// Small delay to let the app settle
+		setTimeout(initMonaco, 1000);
 	}, []);
 
 	useEffect(() => {
@@ -233,6 +260,14 @@ export const EditorProvider = ({ children }) => {
 						};
 					}
 				}
+			} else if (type === 'note' && projectData?.assets?.notes) {
+				const noteAsset = projectData.assets.notes.find((n) => n.name === name);
+				if (noteAsset) {
+					fileInfo = {
+						asset: noteAsset,
+						content: noteAsset.content,
+					};
+				}
 			}
 
 			if (fileInfo) {
@@ -243,6 +278,49 @@ export const EditorProvider = ({ children }) => {
 		[openFile, projectData]
 	);
 
+	const openDiffView = useCallback(
+		(filePath, assetInfo) => {
+			const tabId = `diff_${filePath}`;
+
+			const existingTab = openTabs.find((tab) => tab.id === tabId);
+			if (existingTab) {
+				setActiveTab(tabId);
+				return;
+			}
+
+			// Determine language based on asset type
+			let language = 'plaintext';
+			if (assetInfo) {
+				if (assetInfo.type === 'script' || assetInfo.type === 'object') {
+					language = 'gml';
+				} else if (assetInfo.type === 'note') {
+					language = 'plaintext';
+				}
+			} else {
+				// Fallback: determine from file path
+				if (filePath.endsWith('.gml')) {
+					language = 'gml';
+				} else if (filePath.endsWith('.txt')) {
+					language = 'plaintext';
+				}
+			}
+
+			const newTab = {
+				id: tabId,
+				title: `Diff: ${assetInfo?.name || filePath.split('/').pop()}`,
+				isDiff: true,
+				filePath: filePath,
+				language: language,
+				assetInfo: assetInfo,
+				isDirty: false,
+			};
+
+			setOpenTabs((prev) => [...prev, newTab]);
+			setActiveTab(tabId);
+		},
+		[openTabs]
+	);
+
 	const value = {
 		openTabs,
 		activeTab,
@@ -250,6 +328,7 @@ export const EditorProvider = ({ children }) => {
 		openFile,
 		openObjectFiles,
 		openFileAtLocation,
+		openDiffView,
 		closeTab,
 		updateTabContent,
 		reorderTabs,

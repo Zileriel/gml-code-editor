@@ -17,7 +17,82 @@ import iconNote from '../assets/icon_notes.png';
 export default function Explorer() {
 	const [projectData, setProjectData] = useState(null);
 	const [expandedFolders, setExpandedFolders] = useState({});
+	const [gitStatus, setGitStatus] = useState(null);
 	const { openFile, openObjectFiles, activeTab, openTabs } = useEditor();
+
+	const loadGitStatus = async () => {
+		try {
+			const status = await window.api?.getGitStatus?.();
+			setGitStatus(status);
+		} catch (error) {
+			setGitStatus(null);
+		}
+	};
+
+	const getFileGitStatus = (assetName, assetType) => {
+		if (!gitStatus?.files) return null;
+
+		// Find matching file status - Git reports directory changes for GameMaker assets
+		const fileStatus = gitStatus.files.find((f) => {
+			// Check for directory matches (Git reports "scripts/scr_name/" for changed scripts)
+			if (assetType === 'script') {
+				return (
+					f.path === `scripts/${assetName}/` ||
+					f.path.startsWith(`scripts/${assetName}/`) ||
+					f.path === `scripts/${assetName}.gml`
+				);
+			} else if (assetType === 'object') {
+				return (
+					f.path === `objects/${assetName}/` ||
+					f.path.startsWith(`objects/${assetName}/`) ||
+					f.path === `objects/${assetName}.yy`
+				);
+			} else if (assetType === 'note') {
+				return (
+					f.path === `notes/${assetName}/` ||
+					f.path.startsWith(`notes/${assetName}/`) ||
+					f.path === `notes/${assetName}.txt`
+				);
+			}
+			return false;
+		});
+
+		if (fileStatus) {
+			return fileStatus.status;
+		}
+
+		return null;
+	};
+
+	const renderGitStatus = (status) => {
+		if (!status) return null;
+
+		const getStatusColor = (status) => {
+			switch (status) {
+				case 'M':
+					return '#ff9500'; // Modified - orange
+				case 'A':
+					return '#00ff00'; // Added - green
+				case 'D':
+					return '#ff0000'; // Deleted - red
+				case 'U':
+					return '#ff0080'; // Untracked - pink
+				case 'R':
+					return '#0080ff'; // Renamed - blue
+				default:
+					return '#888888'; // Unknown - gray
+			}
+		};
+
+		return (
+			<span
+				className="git-status"
+				style={{ color: getStatusColor(status) }}
+				title={`Git status: ${status}`}>
+				{status}
+			</span>
+		);
+	};
 
 	useEffect(() => {
 		const initializeProjectData = async () => {
@@ -43,12 +118,14 @@ export default function Explorer() {
 		};
 
 		initializeProjectData();
+		loadGitStatus();
 
 		// Listen for new project loads
 		if (window.api?.onProjectLoaded) {
 			const removeListener = window.api.onProjectLoaded((data) => {
 				setProjectData(data);
 				setExpandedFolders({});
+				loadGitStatus();
 			});
 
 			return removeListener;
@@ -179,6 +256,7 @@ export default function Explorer() {
 									onClick={() => handleAssetClick(asset)}>
 									{getAssetIcon(asset.type)}
 									<span className="asset-name">{asset.name}</span>
+									{renderGitStatus(getFileGitStatus(asset.name, asset.type))}
 								</div>
 							))}
 						</div>
@@ -198,6 +276,7 @@ export default function Explorer() {
 						onClick={() => handleAssetClick(asset)}>
 						{getAssetIcon(asset.type)}
 						<span className="asset-name">{asset.name}</span>
+						{renderGitStatus(getFileGitStatus(asset.name, asset.type))}
 					</div>
 				);
 			});

@@ -10,7 +10,8 @@ import Topbar from './views/Topbar';
 
 // Inner component to access contexts
 function AppContent() {
-	const { switchToSearch, switchToExplorer } = useMainView();
+	const { switchToSearch, switchToExplorer, switchToSourceControl } =
+		useMainView();
 	const { editorInstance } = useEditor();
 
 	useEffect(() => {
@@ -32,17 +33,23 @@ function AppContent() {
 				// Switch to search view with selected text
 				switchToSearch(selectedText);
 			}
-			
+
 			// Ctrl/Cmd + Shift + E for explorer
 			if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'E') {
 				e.preventDefault();
 				switchToExplorer();
 			}
+
+			// Ctrl/Cmd + Shift + G for source control
+			if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'G') {
+				e.preventDefault();
+				switchToSourceControl();
+			}
 		};
 
 		document.addEventListener('keydown', handleKeyDown);
 		return () => document.removeEventListener('keydown', handleKeyDown);
-	}, [switchToSearch, switchToExplorer, editorInstance]);
+	}, [switchToSearch, switchToExplorer, switchToSourceControl, editorInstance]);
 
 	return (
 		<main>

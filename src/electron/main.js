@@ -6,6 +6,8 @@ import { createCanvas, loadImage } from 'canvas';
 // Node.js modules
 import path from 'path';
 import fs from 'fs';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 
 // App constants
 const ROOT_PATH = '/dist-react/index.html';
@@ -1044,6 +1046,20 @@ ipcMain.on('menu:new-window', () => {
 	createWindow();
 });
 
+ipcMain.handle('api:get-current-project-data', async () => {
+	try {
+		const currentProject = store.get('currentProject');
+		if (!currentProject || !fs.existsSync(currentProject)) {
+			return null;
+		}
+
+		return await scanGameMakerProject(currentProject);
+	} catch (error) {
+		console.error('Failed to get current project data:', error);
+		return null;
+	}
+});
+
 ipcMain.handle('menu:open-project', async () => {
 	const result = await dialog.showOpenDialog(mainWindow, {
 		properties: ['openDirectory'],
@@ -1269,18 +1285,309 @@ ipcMain.handle('api:replace-in-files', async (event, replaceOptions) => {
 	}
 });
 
-ipcMain.handle('api:get-current-project-data', async () => {
-	const currentProject = store.get('currentProject');
-	if (currentProject && fs.existsSync(currentProject)) {
-		try {
-			const projectData = await scanGameMakerProject(currentProject);
-			return projectData;
-		} catch (error) {
-			console.error('Failed to get current project data:', error);
+//#region Git Operations
+
+const execAsync = promisify(exec);
+
+/**
+ * Execute git command in project directory
+ */
+const executeGitCommand = async (command, cwd = null) => {
+	const projectDir = cwd || store.get('currentProject');
+	if (!projectDir) {
+		throw new Error('No project is currently open');
+	}
+
+	try {
+		const { stdout, stderr } = await execAsync(command, { cwd: projectDir });
+		return { stdout: stdout.trim(), stderr: stderr.trim() };
+	} catch (error) {
+		throw new Error(`Git command failed: ${error.message}`);
+	}
+};
+
+/**
+ * Check if directory is a git repository
+ */
+const isGitRepository = async (projectPath = null) => {
+	try {
+		const projectDir = projectPath || store.get('currentProject');
+		if (!projectDir) return false;
+
+		const gitDir = path.join(projectDir, '.git');
+		return fs.existsSync(gitDir);
+	} catch (error) {
+		return false;
+	}
+};
+
+/**
+ * Parse git status output
+ */
+const parseGitStatus = (stdout) => {
+	const lines = stdout.split('\n').filter((line) => line.trim());
+	const files = [];
+
+	for (const line of lines) {
+		if (line.length < 3) continue;
+
+		const status = line.substring(0, 2);
+		const filePath = line.substring(3);
+
+		// Determine status character
+		let statusChar = 'U'; // Default to untracked
+		if (status[0] === 'M' || status[1] === 'M') statusChar = 'M';
+		else if (status[0] === 'A' || status[1] === 'A') statusChar = 'A';
+		else if (status[0] === 'D' || status[1] === 'D') statusChar = 'D';
+		else if (status[0] === 'R' || status[1] === 'R') statusChar = 'R';
+		else if (status === '??') statusChar = 'U';
+
+		files.push({
+			path: filePath,
+			status: statusChar,
+			staged: status[0] !== ' ' && status[0] !== '?',
+		});
+	}
+
+	return files;
+};
+
+// Git IPC Handlers
+
+ipcMain.handle('api:get-git-status', async () => {
+	try {
+		if (!(await isGitRepository())) {
 			return null;
 		}
+
+		// Get current branch - handle case where no commits exist yet
+		let branch = 'main';
+		try {
+			const branchResult = await executeGitCommand(
+				'git rev-parse --abbrev-ref HEAD'
+			);
+			branch = branchResult.stdout || 'main';
+		} catch (branchError) {
+			// If HEAD doesn't exist yet (no commits), try to get the default branch
+			try {
+				const branchResult = await executeGitCommand(
+					'git branch --show-current'
+				);
+				branch = branchResult.stdout || 'main';
+			} catch (currentBranchError) {
+				// Fall back to 'main' for new repositories
+				branch = 'main';
+			}
+		}
+
+		// Get status
+		const statusResult = await executeGitCommand('git status --porcelain');
+		const files = parseGitStatus(statusResult.stdout);
+
+		return {
+			branch,
+			files,
+			isRepo: true,
+		};
+	} catch (error) {
+		console.error('Git status error:', error);
+		return null;
 	}
-	return null;
 });
+
+ipcMain.handle('api:init-git-repo', async () => {
+	try {
+		await executeGitCommand('git init');
+		return true;
+	} catch (error) {
+		throw new Error(`Failed to initialize Git repository: ${error.message}`);
+	}
+});
+
+ipcMain.handle('api:git-commit', async (event, message) => {
+	try {
+		// Stage all changes
+		await executeGitCommand('git add .');
+
+		// Commit with message
+		await executeGitCommand(`git commit -m "${message.replace(/"/g, '\\"')}"`);
+
+		return true;
+	} catch (error) {
+		throw new Error(`Failed to commit: ${error.message}`);
+	}
+});
+
+ipcMain.handle('api:git-pull', async () => {
+	try {
+		const result = await executeGitCommand('git pull');
+		return result.stdout;
+	} catch (error) {
+		throw new Error(`Failed to pull: ${error.message}`);
+	}
+});
+
+ipcMain.handle('api:git-push', async () => {
+	try {
+		const result = await executeGitCommand('git push');
+		return result.stdout;
+	} catch (error) {
+		throw new Error(`Failed to push: ${error.message}`);
+	}
+});
+
+ipcMain.handle('api:git-add-remote', async (event, name, url) => {
+	try {
+		await executeGitCommand(`git remote add ${name} ${url}`);
+		return true;
+	} catch (error) {
+		throw new Error(`Failed to add remote: ${error.message}`);
+	}
+});
+
+ipcMain.handle('api:git-set-upstream', async (event, remote, branch) => {
+	try {
+		await executeGitCommand(`git branch --set-upstream-to=${remote}/${branch} ${branch}`);
+		return true;
+	} catch (error) {
+		throw new Error(`Failed to set upstream: ${error.message}`);
+	}
+});
+
+ipcMain.handle('api:git-get-remotes', async () => {
+	try {
+		const result = await executeGitCommand('git remote -v');
+		return result.stdout;
+	} catch (error) {
+		return '';
+	}
+});
+
+ipcMain.handle('api:git-fetch', async () => {
+	try {
+		const result = await executeGitCommand('git fetch');
+		return result.stdout;
+	} catch (error) {
+		throw new Error(`Failed to fetch: ${error.message}`);
+	}
+});
+
+ipcMain.handle('api:git-stage-file', async (event, filePath) => {
+	try {
+		await executeGitCommand(`git add "${filePath}"`);
+		return true;
+	} catch (error) {
+		throw new Error(`Failed to stage file: ${error.message}`);
+	}
+});
+
+ipcMain.handle('api:git-unstage-file', async (event, filePath) => {
+	try {
+		await executeGitCommand(`git reset HEAD "${filePath}"`);
+		return true;
+	} catch (error) {
+		throw new Error(`Failed to unstage file: ${error.message}`);
+	}
+});
+
+ipcMain.handle('api:git-revert-file', async (event, filePath) => {
+	try {
+		// Check if file is staged or committed
+		const statusResult = await executeGitCommand('git status --porcelain');
+		const files = parseGitStatus(statusResult.stdout);
+		const file = files.find((f) => f.path === filePath);
+
+		if (file && file.staged) {
+			// Unstage first, then checkout
+			await executeGitCommand(`git reset HEAD "${filePath}"`);
+		}
+
+		// Revert changes
+		await executeGitCommand(`git checkout -- "${filePath}"`);
+		return true;
+	} catch (error) {
+		throw new Error(`Failed to revert file: ${error.message}`);
+	}
+});
+
+ipcMain.handle('api:git-diff', async (event, filePath) => {
+	try {
+		if (!(await isGitRepository())) {
+			return null;
+		}
+
+		// Get original content from Git HEAD
+		let originalContent = '';
+		try {
+			const originalResult = await executeGitCommand(
+				`git show HEAD:"${filePath}"`
+			);
+			originalContent = originalResult.stdout;
+		} catch (error) {
+			// File might be new, so no original content
+			originalContent = '';
+		}
+
+		return {
+			original: originalContent,
+			diff: (await executeGitCommand(`git diff HEAD -- "${filePath}"`)).stdout,
+		};
+	} catch (error) {
+		console.error('Git diff error:', error);
+		return null;
+	}
+});
+
+ipcMain.handle('api:read-file', async (event, filePath) => {
+	try {
+		const projectDir = store.get('currentProject');
+		if (!projectDir) {
+			throw new Error('No project is currently open');
+		}
+
+		const fullPath = path.join(projectDir, filePath);
+		if (!fs.existsSync(fullPath)) {
+			return null;
+		}
+
+		// Check if it's a directory
+		const stats = fs.statSync(fullPath);
+		if (stats.isDirectory()) {
+			return null; // Can't read directory content as text
+		}
+
+		const content = fs.readFileSync(fullPath, 'utf-8');
+		return content;
+	} catch (error) {
+		console.error('Read file error:', error);
+		return null;
+	}
+});
+
+ipcMain.handle('api:get-current-branch', async () => {
+	try {
+		if (!(await isGitRepository())) {
+			return null;
+		}
+
+		// Try to get current branch, handle new repos without commits
+		try {
+			const result = await executeGitCommand('git rev-parse --abbrev-ref HEAD');
+			return result.stdout || 'main';
+		} catch (headError) {
+			// If HEAD doesn't exist, try current branch command
+			try {
+				const result = await executeGitCommand('git branch --show-current');
+				return result.stdout || 'main';
+			} catch (branchError) {
+				return 'main';
+			}
+		}
+	} catch (error) {
+		return null;
+	}
+});
+
+//#endregion
 //#endregion
 //#endregion

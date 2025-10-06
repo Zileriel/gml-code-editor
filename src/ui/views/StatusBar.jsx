@@ -9,6 +9,7 @@ import {
 	FaCircleInfo,
 	FaMagnifyingGlass,
 } from 'react-icons/fa6';
+import { LuGitBranch, LuLoader2 } from 'react-icons/lu';
 //#endregion
 
 export default function StatusBar() {
@@ -18,6 +19,8 @@ export default function StatusBar() {
 	const [positionStatus, setPositionStatus] = useState('');
 	const [selected, setSelected] = useState(0);
 	const [functionStatus, setFunctionStatus] = useState('');
+	const [currentBranch, setCurrentBranch] = useState('');
+	const [gitOperation, setGitOperation] = useState('');
 
 	useEffect(() => {
 		let status = [];
@@ -91,6 +94,43 @@ export default function StatusBar() {
 		}
 	}, [currentFunction]);
 
+	useEffect(() => {
+		// Load current branch on mount
+		loadCurrentBranch();
+
+		// Listen for project changes
+		let removeProjectListener;
+		if (window.api?.onProjectLoaded) {
+			removeProjectListener = window.api.onProjectLoaded(() => {
+				loadCurrentBranch();
+			});
+		}
+
+		// Listen for Git operation status updates
+		const handleGitOperationUpdate = (event) => {
+			setGitOperation(event.detail.status);
+			if (event.detail.clear) {
+				setTimeout(() => setGitOperation(''), 3000);
+			}
+		};
+		
+		window.addEventListener('gitOperationUpdate', handleGitOperationUpdate);
+		
+		return () => {
+			if (removeProjectListener) removeProjectListener();
+			window.removeEventListener('gitOperationUpdate', handleGitOperationUpdate);
+		};
+	}, []);
+
+	const loadCurrentBranch = async () => {
+		try {
+			const branch = await window.api?.getCurrentBranch?.();
+			setCurrentBranch(branch || '');
+		} catch (error) {
+			setCurrentBranch('');
+		}
+	};
+
 	const hasProblems = () => {
 		if (!problems) return false;
 		if (typeof problems === 'number') return problems > 0;
@@ -141,9 +181,21 @@ export default function StatusBar() {
 						</div>
 					</button>
 				</li>
+				{gitOperation && (
+					<li className="item git-operation" title="Git operation in progress">
+						<LuLoader2 className="spinning" /> {gitOperation}
+					</li>
+				)}
 			</ul>
 
 			<ul className="right items">
+				{currentBranch && (
+					<li
+						className="item git-branch"
+						title={`Current Git branch: ${currentBranch}`}>
+						<LuGitBranch /> {currentBranch}
+					</li>
+				)}
 				{functionStatus && currentFunction && (
 					<li className="item" style={{ fontWeight: 'bold' }}>
 						{typeof functionStatus === 'string' ? (

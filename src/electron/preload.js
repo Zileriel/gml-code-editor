@@ -46,6 +46,67 @@ contextBridge.exposeInMainWorld('api', {
 	getCurrentProjectData: () => {
 		return ipcRenderer.invoke('api:get-current-project-data');
 	},
+
+	// Git operations
+	getGitStatus: () => {
+		return ipcRenderer.invoke('api:get-git-status');
+	},
+
+	initGitRepo: () => {
+		return ipcRenderer.invoke('api:init-git-repo');
+	},
+
+	gitCommit: (message) => {
+		return ipcRenderer.invoke('api:git-commit', message);
+	},
+
+	gitPull: () => {
+		return ipcRenderer.invoke('api:git-pull');
+	},
+
+	gitPush: () => {
+		return ipcRenderer.invoke('api:git-push');
+	},
+
+	gitFetch: () => {
+		return ipcRenderer.invoke('api:git-fetch');
+	},
+
+	gitStageFile: (filePath) => {
+		return ipcRenderer.invoke('api:git-stage-file', filePath);
+	},
+
+	gitUnstageFile: (filePath) => {
+		return ipcRenderer.invoke('api:git-unstage-file', filePath);
+	},
+
+	gitRevertFile: (filePath) => {
+		return ipcRenderer.invoke('api:git-revert-file', filePath);
+	},
+
+	getCurrentBranch: () => {
+		return ipcRenderer.invoke('api:get-current-branch');
+	},
+
+	gitDiff: (filePath) => {
+		return ipcRenderer.invoke('api:git-diff', filePath);
+	},
+
+	gitAddRemote: (name, url) => {
+		return ipcRenderer.invoke('api:git-add-remote', name, url);
+	},
+
+	gitSetUpstream: (remote, branch) => {
+		return ipcRenderer.invoke('api:git-set-upstream', remote, branch);
+	},
+
+	gitGetRemotes: () => {
+		return ipcRenderer.invoke('api:git-get-remotes');
+	},
+
+	readFile: (filePath) => {
+		return ipcRenderer.invoke('api:read-file', filePath);
+	},
 });
 
 contextBridge.exposeInMainWorld('menu', {

@@ -3,6 +3,7 @@
 @media (prefers-color-scheme: dark) {
 	:root {
 		--color-primary: #60908e;
+		--color-primary-dark: #4a726f;
 		--color-secondary: #2d343c;
 
 		--color-text: #aeb5b9;
@@ -25,6 +26,7 @@
 @media (prefers-color-scheme: light) {
 	:root {
 		--color-primary: #60908e;
+		--color-primary-dark: #4a726f;
 		--color-secondary: #2d343c;
 
 		--color-text: #242424;
@@ -254,8 +256,8 @@ main {
 				color: var(--color-background);
 				background-color: var(--color-primary);
 				border-radius: 50%;
-				height: 16px;
-				width: 16px;
+				height: 18px;
+				width: 20px;
 				display: flex;
 				align-items: center;
 				justify-content: center;
@@ -371,7 +373,7 @@ main {
 					display: flex;
 					align-items: center;
 					gap: 0.5rem;
-					padding: 0.25rem 0.5rem;
+					padding: 0.25rem 0.7rem;
 					margin: 0 -0.5rem;
 					cursor: pointer;
 					border-radius: 4px;
@@ -462,7 +464,7 @@ main {
 
 					&.top-level {
 						margin: 0.1rem 0;
-						padding: 0.25rem 0;
+						padding: 0.25rem;
 						border-radius: 4px;
 					}
 				}
@@ -1051,4 +1053,504 @@ main {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	min-width: 0;
+}
+
+/* Source Control Styles */
+
+.no-repo {
+	text-align: center;
+	padding: 2rem 1rem;
+}
+
+.init-repo-button {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.5rem 1rem;
+	background-color: var(--color-primary);
+	color: white;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	margin-top: 1rem;
+}
+
+.init-repo-button:hover {
+	background-color: var(--color-primary-dark);
+	transform: translateY(-1px);
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.commit-section {
+	margin-bottom: 1rem;
+}
+
+.commit-input-container {
+	display: flex;
+	gap: 0.25rem;
+}
+
+.commit-input {
+	flex: 1;
+	padding: 0.4rem;
+	border: 1px solid var(--color-border);
+	border-radius: 3px;
+	background-color: var(--color-foreground);
+	color: var(--color-text);
+	font-size: 0.75rem;
+}
+
+.commit-input:focus {
+	outline: none;
+	border-color: var(--color-primary);
+}
+
+.commit-button {
+	padding: 0.4rem 0.6rem;
+	border: 1px solid var(--color-border);
+	border-radius: 3px;
+	background-color: var(--color-primary);
+	color: white;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.75rem;
+}
+
+.commit-button:hover {
+	background-color: var(--color-primary-dark);
+}
+
+.commit-button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+	background-color: var(--color-border);
+}
+
+.changes-section {
+	margin-bottom: 1rem;
+}
+
+.changes-header {
+	margin-bottom: 0.5rem;
+}
+
+.changes-title {
+	font-weight: bold;
+	font-size: 0.8rem;
+	color: var(--color-text);
+}
+
+.no-changes {
+	text-align: center;
+	color: var(--color-text-secondary);
+	font-size: 0.75rem;
+	padding: 1rem;
+}
+
+/* Git Change Items */
+.git-change-item {
+	position: relative;
+	padding-right: 4rem; /* Make room for hover actions */
+}
+
+.git-change-item .asset-info {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex: 1;
+}
+
+.git-change-item .file-info {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0; /* Allow text to truncate */
+}
+
+.git-change-item .asset-name {
+	font-size: 0.8rem;
+	color: var(--color-text);
+	font-weight: 500;
+}
+
+.git-change-item .file-path {
+	font-size: 0.7rem;
+	color: var(--color-text);
+	opacity: 0.6;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.git-change-item .git-status {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	margin-left: auto;
+	flex-shrink: 0;
+	position: absolute;
+	right: 0.5rem;
+}
+
+.git-status.status-m {
+	background-color: #d4a460;
+} /* Modified */
+.git-status.status-a {
+	background-color: #8fcf8f;
+} /* Added */
+.git-status.status-d {
+	background-color: #ce6969;
+} /* Deleted */
+.git-status.status-u {
+	background-color: #8fcf8f;
+} /* Untracked */
+.git-status.status-r {
+	background-color: #0080ff;
+} /* Renamed */
+
+/* Hover Actions */
+.hover-actions {
+	opacity: 0;
+	transition: opacity 0.2s ease;
+	display: flex;
+	align-items: center;
+	gap: 0.25rem;
+	position: absolute;
+	right: 0.5rem;
+	top: 50%;
+	transform: translateY(-50%);
+	background: var(--color-foreground);
+	padding: 0.1rem;
+	border-radius: 3px;
+	border: 1px solid var(--color-border);
+}
+
+.hover-actions .git-status {
+	margin-left: 0.25rem;
+}
+
+.git-change-item:hover .hover-actions {
+	opacity: 1;
+}
+
+.hover-actions button {
+	padding: 0.2rem 0.3rem;
+	border: none;
+	border-radius: 2px;
+	background: transparent;
+	color: var(--color-text);
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.7rem;
+}
+
+.hover-actions button:hover {
+	background-color: var(--color-highlight);
+}
+
+.changes-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+}
+
+.change-item {
+	display: flex;
+	align-items: center;
+	padding: 0.3rem 0.4rem;
+	cursor: pointer;
+	border-radius: 3px;
+	transition: background-color 0.2s ease;
+	position: relative;
+}
+
+.change-item:hover {
+	background-color: var(--color-highlight);
+}
+
+.change-item:hover .change-actions {
+	display: flex;
+}
+
+.change-info {
+	flex: 1;
+	min-width: 0;
+	margin-right: 0.5rem;
+}
+
+.file-name {
+	font-size: 0.75rem;
+	font-weight: 500;
+	color: var(--color-text);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.file-path {
+	font-size: 0.65rem;
+	color: var(--color-text-secondary);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.change-status {
+	font-size: 0.7rem;
+	font-weight: bold;
+	min-width: 1rem;
+	text-align: center;
+}
+
+.change-actions {
+	display: none;
+	gap: 0.25rem;
+	position: absolute;
+	right: 0.5rem;
+	background-color: var(--color-foreground);
+	padding: 0.15rem;
+	border-radius: 3px;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.change-actions button {
+	padding: 0.2rem;
+	border: none;
+	background: none;
+	cursor: pointer;
+	color: var(--color-text);
+	border-radius: 2px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.7rem;
+}
+
+.change-actions button:hover {
+	background-color: var(--color-highlight);
+}
+
+.loading {
+	text-align: center;
+	padding: 2rem;
+	color: var(--color-text-secondary);
+}
+
+/* Button loading states */
+button.loading {
+	opacity: 0.7;
+	pointer-events: none;
+}
+
+button.loading svg {
+	animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+	from { transform: rotate(0deg); }
+	to { transform: rotate(360deg); }
+}
+
+.spinning {
+	animation: spin 1s linear infinite;
+}
+
+/* Git operation status in StatusBar */
+.git-operation {
+	color: var(--color-accent) !important;
+	font-weight: 500;
+}
+
+/* Git Status in Explorer */
+.git-status {
+	font-size: 0.65rem;
+	font-weight: bold;
+	margin-left: auto;
+	padding: 0.1rem 0.3rem;
+	border-radius: 2px;
+	background: transparent;
+}
+
+/* Git Status in Explorer asset items (no background) */
+.asset-item .git-status {
+	padding: 0;
+}
+
+/* Git Branch in Status Bar */
+.git-branch {
+	font-size: 0.75rem !important;
+	color: var(--color-text-secondary) !important;
+}
+
+/* Diff Viewer Styles */
+.diff-viewer {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	width: 100%;
+	background-color: var(--color-background);
+}
+
+.diff-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 0.5rem 1rem;
+	background-color: var(--color-foreground);
+	border-bottom: 1px solid var(--color-border);
+	font-size: 0.9rem;
+	color: var(--color-text);
+}
+
+.diff-close-btn {
+	background: none;
+	border: none;
+	color: var(--color-text);
+	cursor: pointer;
+	padding: 0.25rem 0.5rem;
+	border-radius: 3px;
+	font-size: 1.1rem;
+}
+
+.diff-close-btn:hover {
+	background-color: var(--color-hover);
+}
+
+.diff-content {
+	flex: 1;
+	position: relative;
+	overflow: hidden;
+	min-height: 400px;
+}
+
+.diff-content .monaco-editor {
+	height: 100% !important;
+}
+
+.diff-content .monaco-diff-editor {
+	height: 100% !important;
+}
+
+/* Modal Dialog Styles */
+.modal-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(0, 0, 0, 0.5);
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	z-index: 10000;
+}
+
+.modal-dialog {
+	background-color: var(--color-background);
+	border: 1px solid var(--color-border);
+	border-radius: 6px;
+	min-width: 400px;
+	max-width: 600px;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+	padding: 1rem 1.5rem;
+	border-bottom: 1px solid var(--color-border);
+}
+
+.modal-header h3 {
+	margin: 0;
+	color: var(--color-text-primary);
+	font-size: 1.1rem;
+	font-weight: 600;
+}
+
+.modal-body {
+	padding: 1.5rem;
+}
+
+.modal-body p {
+	margin: 0 0 1.5rem 0;
+	color: var(--color-text-secondary);
+	line-height: 1.5;
+}
+
+.form-group {
+	margin-bottom: 1.5rem;
+}
+
+.form-group label {
+	display: block;
+	margin-bottom: 0.5rem;
+	color: var(--color-text-primary);
+	font-weight: 500;
+}
+
+.form-group input {
+	width: 100%;
+	padding: 0.75rem;
+	border: 1px solid var(--color-border);
+	border-radius: 4px;
+	background-color: var(--color-bg-secondary);
+	color: var(--color-text-primary);
+	font-size: 0.9rem;
+	font-family: inherit;
+	box-sizing: border-box;
+}
+
+.form-group input:focus {
+	outline: none;
+	border-color: var(--color-accent);
+	box-shadow: 0 0 0 2px rgba(79, 192, 141, 0.2);
+}
+
+.form-group input:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+.form-actions {
+	display: flex;
+	gap: 0.75rem;
+	justify-content: flex-end;
+}
+
+.form-actions button {
+	padding: 0.75rem 1.25rem;
+	border: 1px solid var(--color-border);
+	border-radius: 4px;
+	background-color: var(--color-bg-secondary);
+	color: var(--color-text-primary);
+	font-size: 0.9rem;
+	font-weight: 500;
+	cursor: pointer;
+	transition: all 0.2s ease;
+}
+
+.form-actions button:hover:not(:disabled) {
+	background-color: var(--color-hover);
+}
+
+.form-actions button:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+.confirm-button {
+	background-color: var(--color-accent) !important;
+	color: white !important;
+	border-color: var(--color-accent) !important;
+}
+
+.confirm-button:hover:not(:disabled) {
+	background-color: var(--color-accent-dark) !important;
+}
+
+.cancel-button:hover:not(:disabled) {
+	background-color: var(--color-bg-tertiary);
 }

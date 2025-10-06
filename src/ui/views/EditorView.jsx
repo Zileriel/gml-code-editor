@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { FaTimes, FaGripVertical, FaColumns } from 'react-icons/fa';
 import MonacoEditor from '../components/MonacoEditor';
+import DiffViewer from '../components/DiffViewer';
 import { useEditor } from '../contexts/EditorContext';
 
 const EditorView = () => {
@@ -275,15 +276,23 @@ const EditorView = () => {
 
 	const renderEditor = (tabData) => (
 		<div className="golden-content">
-			{tabData && (
-				<MonacoEditor
-					key={tabData.id}
-					tabId={tabData.id}
-					content={tabData.content}
-					language={tabData.language}
-					onContentChange={handleContentChange}
-				/>
-			)}
+			{tabData &&
+				(tabData.isDiff ? (
+					<DiffViewer
+						key={tabData.id}
+						filePath={tabData.filePath}
+						language={tabData.language}
+						onClose={() => closeTab(tabData.id)}
+					/>
+				) : (
+					<MonacoEditor
+						key={tabData.id}
+						tabId={tabData.id}
+						content={tabData.content}
+						language={tabData.language}
+						onContentChange={handleContentChange}
+					/>
+				))}
 		</div>
 	);
 

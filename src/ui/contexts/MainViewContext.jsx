@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState } from 'react';
 export const VIEW_TYPES = {
 	EXPLORER: 'explorer',
 	SEARCH: 'search',
+	SOURCE_CONTROL: 'source-control',
 };
 
 const MainViewContext = createContext();
@@ -45,6 +46,10 @@ export const MainViewProvider = ({ children }) => {
 		}
 	};
 
+	const switchToSourceControl = () => {
+		setActiveView(VIEW_TYPES.SOURCE_CONTROL);
+	};
+
 	const updateSearchState = (newState) => {
 		setSearchState((prev) => ({
 			...prev,
@@ -60,12 +65,18 @@ export const MainViewProvider = ({ children }) => {
 		return activeView === VIEW_TYPES.SEARCH;
 	};
 
+	const isSourceControlActive = () => {
+		return activeView === VIEW_TYPES.SOURCE_CONTROL;
+	};
+
 	const value = {
 		activeView,
 		switchToExplorer,
 		switchToSearch,
+		switchToSourceControl,
 		isExplorerActive,
 		isSearchActive,
+		isSourceControlActive,
 		searchState,
 		updateSearchState,
 	};
