@@ -57,25 +57,26 @@ export default function SourceControl() {
 		try {
 			// Get project name for the remote name
 			const projectName = projectData?.name || 'origin';
-			
+
 			// Add remote
 			await window.api?.gitAddRemote?.(projectName, remoteUrl);
-			
+
 			// Set upstream tracking
 			await window.api?.gitSetUpstream?.(projectName, currentBranch);
-			
+
 			// Execute the pending operation
 			if (pendingOperation === 'pull') {
 				await pullChanges();
 			} else if (pendingOperation === 'push') {
 				await pushChanges();
 			}
-			
+
 			setPendingOperation(null);
 		} catch (error) {
 			throw error;
 		}
-	};	useEffect(() => {
+	};
+	useEffect(() => {
 		const initializeProjectData = async () => {
 			// First try to get from window.currentProjectData
 			if (window.currentProjectData) {
@@ -123,20 +124,20 @@ export default function SourceControl() {
 			if (status) {
 				setIsGitRepo(true);
 				setGitStatus(status);
-				
+
 				// Filter out .yy files and clean up paths
 				const allFiles = status.files || [];
-				const relevantFiles = allFiles.filter(file => {
+				const relevantFiles = allFiles.filter((file) => {
 					// Remove accidental quotes and filter out .yy files
 					const cleanPath = file.path.replace(/^"|"$/g, '');
 					file.path = cleanPath; // Update the path to clean version
 					return !cleanPath.endsWith('.yy') && !cleanPath.endsWith('"');
 				});
-				
+
 				// Separate staged and unstaged changes
-				const staged = relevantFiles.filter(file => file.staged);
-				const unstaged = relevantFiles.filter(file => !file.staged);
-				
+				const staged = relevantFiles.filter((file) => file.staged);
+				const unstaged = relevantFiles.filter((file) => !file.staged);
+
 				setChanges(relevantFiles);
 				setStagedChanges(staged);
 				setUnstagedChanges(unstaged);
@@ -176,13 +177,13 @@ export default function SourceControl() {
 		try {
 			setLoadingOperation('commit');
 			setOperationStatus('Committing changes...');
-			
+
 			// Stage all changes and commit
 			await window.api?.gitCommit?.(commitMessage);
 			setCommitMessage('');
 			await initializeGitStatus();
 			notifyGitStatusChanged();
-			
+
 			setOperationStatus('Commit successful', true);
 		} catch (error) {
 			setOperationStatus('Commit failed', true);
@@ -196,14 +197,17 @@ export default function SourceControl() {
 		try {
 			setLoadingOperation('pull');
 			setOperationStatus('Pulling changes...');
-			
+
 			await window.api?.gitPull?.();
 			await initializeGitStatus();
 			notifyGitStatusChanged();
-			
+
 			setOperationStatus('Pull successful', true);
 		} catch (error) {
-			if (error.message.includes('no tracking information') || error.message.includes('No configured push destination')) {
+			if (
+				error.message.includes('no tracking information') ||
+				error.message.includes('No configured push destination')
+			) {
 				setPendingOperation('pull');
 				setShowRemoteDialog(true);
 			} else {
@@ -219,14 +223,17 @@ export default function SourceControl() {
 		try {
 			setLoadingOperation('push');
 			setOperationStatus('Pushing changes...');
-			
+
 			await window.api?.gitPush?.();
 			await initializeGitStatus();
 			notifyGitStatusChanged();
-			
+
 			setOperationStatus('Push successful', true);
 		} catch (error) {
-			if (error.message.includes('No configured push destination') || error.message.includes('no tracking information')) {
+			if (
+				error.message.includes('No configured push destination') ||
+				error.message.includes('no tracking information')
+			) {
 				setPendingOperation('push');
 				setShowRemoteDialog(true);
 			} else {
@@ -242,11 +249,11 @@ export default function SourceControl() {
 		try {
 			setLoadingOperation('fetch');
 			setOperationStatus('Fetching changes...');
-			
+
 			await window.api?.gitFetch?.();
 			await initializeGitStatus();
 			notifyGitStatusChanged();
-			
+
 			setOperationStatus('Fetch successful', true);
 		} catch (error) {
 			setOperationStatus('Fetch failed', true);
@@ -495,24 +502,24 @@ export default function SourceControl() {
 				<span className="title">Source Control</span>
 				<ul className="actions">
 					<li title="Pull">
-						<button 
-							onClick={pullChanges} 
+						<button
+							onClick={pullChanges}
 							disabled={loadingOperation === 'pull'}
 							className={loadingOperation === 'pull' ? 'loading' : ''}>
 							<LuDownload />
 						</button>
 					</li>
 					<li title="Push">
-						<button 
-							onClick={pushChanges} 
+						<button
+							onClick={pushChanges}
 							disabled={loadingOperation === 'push'}
 							className={loadingOperation === 'push' ? 'loading' : ''}>
 							<LuUpload />
 						</button>
 					</li>
 					<li title="Fetch">
-						<button 
-							onClick={fetchChanges} 
+						<button
+							onClick={fetchChanges}
 							disabled={loadingOperation === 'fetch'}
 							className={loadingOperation === 'fetch' ? 'loading' : ''}>
 							<LuRefreshCw />
@@ -538,7 +545,9 @@ export default function SourceControl() {
 							}}
 						/>
 						<button
-							className={`commit-button ${loadingOperation === 'commit' ? 'loading' : ''}`}
+							className={`commit-button ${
+								loadingOperation === 'commit' ? 'loading' : ''
+							}`}
 							onClick={commitChanges}
 							disabled={
 								!commitMessage.trim() ||
@@ -553,14 +562,16 @@ export default function SourceControl() {
 				</div>
 
 				{/* Staged Changes Section */}
-				{stagedChanges.filter((change) => isExplorerRelevantFile(change.path)).length > 0 && (
+				{stagedChanges.filter((change) => isExplorerRelevantFile(change.path))
+					.length > 0 && (
 					<div className="changes-section">
 						<div className="folder-header">
 							<span className="folder-name">
 								Staged Changes (
 								{
-									stagedChanges.filter((change) => isExplorerRelevantFile(change.path))
-										.length
+									stagedChanges.filter((change) =>
+										isExplorerRelevantFile(change.path)
+									).length
 								}
 								)
 							</span>
@@ -613,15 +624,17 @@ export default function SourceControl() {
 						<span className="folder-name">
 							Changes (
 							{
-								unstagedChanges.filter((change) => isExplorerRelevantFile(change.path))
-									.length
+								unstagedChanges.filter((change) =>
+									isExplorerRelevantFile(change.path)
+								).length
 							}
 							)
 						</span>
 					</div>
 
-					{unstagedChanges.filter((change) => isExplorerRelevantFile(change.path))
-						.length === 0 ? (
+					{unstagedChanges.filter((change) =>
+						isExplorerRelevantFile(change.path)
+					).length === 0 ? (
 						<div className="no-changes">No changes to commit</div>
 					) : (
 						<div className="asset-list">
@@ -672,7 +685,7 @@ export default function SourceControl() {
 					)}
 				</div>
 			</div>
-			
+
 			<RemoteConfigDialog
 				isOpen={showRemoteDialog}
 				onClose={() => {

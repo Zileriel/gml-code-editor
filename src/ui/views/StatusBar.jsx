@@ -9,7 +9,7 @@ import {
 	FaCircleInfo,
 	FaMagnifyingGlass,
 } from 'react-icons/fa6';
-import { LuGitBranch, LuLoader2 } from 'react-icons/lu';
+import { LuGitBranch, LuRefreshCw } from 'react-icons/lu';
 //#endregion
 
 export default function StatusBar() {
@@ -113,12 +113,15 @@ export default function StatusBar() {
 				setTimeout(() => setGitOperation(''), 3000);
 			}
 		};
-		
+
 		window.addEventListener('gitOperationUpdate', handleGitOperationUpdate);
-		
+
 		return () => {
 			if (removeProjectListener) removeProjectListener();
-			window.removeEventListener('gitOperationUpdate', handleGitOperationUpdate);
+			window.removeEventListener(
+				'gitOperationUpdate',
+				handleGitOperationUpdate
+			);
 		};
 	}, []);
 
@@ -183,7 +186,7 @@ export default function StatusBar() {
 				</li>
 				{gitOperation && (
 					<li className="item git-operation" title="Git operation in progress">
-						<LuLoader2 className="spinning" /> {gitOperation}
+						<LuRefreshCw className="spinning" /> {gitOperation}
 					</li>
 				)}
 			</ul>

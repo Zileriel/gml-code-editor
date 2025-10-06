@@ -20,6 +20,20 @@ export const useMainView = () => {
 export const MainViewProvider = ({ children }) => {
 	const [activeView, setActiveView] = useState(VIEW_TYPES.EXPLORER);
 
+	// Panel width management
+	const DEFAULT_WIDTH = 250;
+	const MIN_WIDTH = 150;
+	const MAX_WIDTH = 400;
+	const COLLAPSE_THRESHOLD = 150;
+
+	const [panelWidths, setPanelWidths] = useState({
+		[VIEW_TYPES.EXPLORER]: DEFAULT_WIDTH,
+		[VIEW_TYPES.SEARCH]: DEFAULT_WIDTH,
+		[VIEW_TYPES.SOURCE_CONTROL]: DEFAULT_WIDTH,
+	});
+
+	const [isCollapsed, setIsCollapsed] = useState(false);
+
 	// Persistent search state
 	const [searchState, setSearchState] = useState({
 		searchTerm: '',
@@ -33,10 +47,12 @@ export const MainViewProvider = ({ children }) => {
 
 	const switchToExplorer = () => {
 		setActiveView(VIEW_TYPES.EXPLORER);
+		setIsCollapsed(false); // Always uncollapse when switching views
 	};
 
 	const switchToSearch = (selectedText = '') => {
 		setActiveView(VIEW_TYPES.SEARCH);
+		setIsCollapsed(false); // Always uncollapse when switching views
 		// If selected text is provided, update search term
 		if (selectedText) {
 			setSearchState((prev) => ({
@@ -48,6 +64,33 @@ export const MainViewProvider = ({ children }) => {
 
 	const switchToSourceControl = () => {
 		setActiveView(VIEW_TYPES.SOURCE_CONTROL);
+		setIsCollapsed(false); // Always uncollapse when switching views
+	};
+
+	// Panel width management functions
+	const updatePanelWidth = (viewType, width) => {
+		// Clamp width between min and max
+		const clampedWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, width));
+
+		setPanelWidths((prev) => ({
+			...prev,
+			[viewType]: clampedWidth,
+		}));
+
+		// Check if we should collapse
+		if (width < COLLAPSE_THRESHOLD) {
+			setIsCollapsed(true);
+		} else {
+			setIsCollapsed(false);
+		}
+	};
+
+	const getCurrentPanelWidth = () => {
+		return isCollapsed ? 0 : panelWidths[activeView];
+	};
+
+	const toggleCollapse = () => {
+		setIsCollapsed(!isCollapsed);
 	};
 
 	const updateSearchState = (newState) => {
@@ -79,6 +122,16 @@ export const MainViewProvider = ({ children }) => {
 		isSourceControlActive,
 		searchState,
 		updateSearchState,
+		// Width management
+		panelWidths,
+		updatePanelWidth,
+		getCurrentPanelWidth,
+		isCollapsed,
+		toggleCollapse,
+		DEFAULT_WIDTH,
+		MIN_WIDTH,
+		MAX_WIDTH,
+		COLLAPSE_THRESHOLD,
 	};
 
 	return (

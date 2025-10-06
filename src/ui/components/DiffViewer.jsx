@@ -40,7 +40,6 @@ export default function DiffViewer({ filePath, onClose, language = 'gml' }) {
 				// Dispose the editor (this will handle model disposal internally)
 				diffEditorRef.current.dispose();
 				diffEditorRef.current = null;
-
 			} catch (error) {
 				console.warn('DiffViewer: Error during cleanup:', error);
 			}

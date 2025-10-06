@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 
-export default function RemoteConfigDialog({ isOpen, onClose, onConfirm, operation }) {
+export default function RemoteConfigDialog({
+	isOpen,
+	onClose,
+	onConfirm,
+	operation,
+}) {
 	const [remoteUrl, setRemoteUrl] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
 
@@ -35,8 +40,8 @@ export default function RemoteConfigDialog({ isOpen, onClose, onConfirm, operati
 				</div>
 				<div className="modal-body">
 					<p>
-						To {operation}, you need to configure a remote repository. 
-						Please enter the URL of your remote Git repository:
+						To {operation}, you need to configure a remote repository. Please
+						enter the URL of your remote Git repository:
 					</p>
 					<form onSubmit={handleSubmit}>
 						<div className="form-group">
@@ -53,15 +58,15 @@ export default function RemoteConfigDialog({ isOpen, onClose, onConfirm, operati
 							/>
 						</div>
 						<div className="form-actions">
-							<button 
-								type="button" 
+							<button
+								type="button"
 								onClick={handleCancel}
 								disabled={isLoading}
 								className="cancel-button">
 								Cancel
 							</button>
-							<button 
-								type="submit" 
+							<button
+								type="submit"
 								disabled={!remoteUrl.trim() || isLoading}
 								className="confirm-button">
 								{isLoading ? 'Configuring...' : 'Configure & ' + operation}

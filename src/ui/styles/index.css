@@ -277,17 +277,52 @@ main {
 		display: flex;
 		height: 100%;
 
-		#explorer {
+		.left-panel {
 			height: 100%;
 			max-height: calc(100vh - 60px);
 			border-right: 1px solid var(--color-border);
-			width: 250px;
-			min-width: 100px;
-			max-width: 400px;
+			overflow: hidden;
+			transition: width 0.2s ease-in-out;
+			background-color: var(--color-background);
+			flex-shrink: 0; /* Prevent panel from shrinking beyond its set width */
+
+			&.collapsed {
+				width: 0 !important;
+				border-right: none;
+				transition: width 0.2s ease-in-out;
+			}
+		}
+
+		.resize-handle {
+			width: 4px;
+			background-color: transparent;
+			cursor: ew-resize;
+			flex-shrink: 0;
+			transition: background-color 0.1s ease;
+			position: relative;
+
+			&:hover {
+				background-color: var(--color-accent);
+			}
+
+			&.resizing {
+				background-color: var(--color-accent);
+			}
+
+			&:after {
+				content: '';
+				position: absolute;
+				top: 0;
+				left: -2px;
+				right: -2px;
+				bottom: 0;
+			}
+		}
+
+		#explorer {
+			height: 100%;
 			padding: 0.5rem 1rem;
 			user-select: none;
-
-			background-color: var(--color-background);
 			box-shadow: 2px 0 5px var(--color-shadow);
 			display: flex;
 			flex-direction: column;
@@ -545,9 +580,12 @@ main {
 	height: 100%;
 	position: relative;
 	overflow: hidden;
-	max-width: calc(100vw - 300px);
+	max-width: calc(
+		100vw - var(--left-space, 310px)
+	); /* Dynamic width based on left panel size */
 	max-height: calc(100vh - 60px);
 	z-index: 5;
+	min-width: 0; /* Allow flex item to shrink below content size */
 }
 
 .editor-zero-state {
@@ -591,7 +629,7 @@ main {
 	scrollbar-width: thin;
 	scrollbar-color: var(--color-border) transparent;
 	scroll-behavior: smooth;
-	max-width: calc(100vw - 335px);
+	max-width: calc(100vw - var(--left-space, 310px));
 }
 
 .tabs-scroll-container::-webkit-scrollbar {
@@ -1351,12 +1389,26 @@ button.loading svg {
 }
 
 @keyframes spin {
-	from { transform: rotate(0deg); }
-	to { transform: rotate(360deg); }
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
 }
 
 .spinning {
 	animation: spin 1s linear infinite;
+}
+
+/* Disable transitions and pointer events during resize for performance */
+body.resizing * {
+	transition: none !important;
+	pointer-events: none !important;
+}
+
+body.resizing .resize-handle {
+	pointer-events: auto !important;
 }
 
 /* Git operation status in StatusBar */

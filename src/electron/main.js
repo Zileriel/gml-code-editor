@@ -1447,7 +1447,9 @@ ipcMain.handle('api:git-add-remote', async (event, name, url) => {
 
 ipcMain.handle('api:git-set-upstream', async (event, remote, branch) => {
 	try {
-		await executeGitCommand(`git branch --set-upstream-to=${remote}/${branch} ${branch}`);
+		await executeGitCommand(
+			`git branch --set-upstream-to=${remote}/${branch} ${branch}`
+		);
 		return true;
 	} catch (error) {
 		throw new Error(`Failed to set upstream: ${error.message}`);
