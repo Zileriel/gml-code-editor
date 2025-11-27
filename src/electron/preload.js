@@ -108,6 +108,10 @@ contextBridge.exposeInMainWorld('api', {
 		return ipcRenderer.invoke('api:read-file', filePath);
 	},
 
+	reloadFileContent: (fileInfo) => {
+		return ipcRenderer.invoke('api:reload-file-content', fileInfo);
+	},
+
 	saveFile: (fileInfo) => {
 		return ipcRenderer.invoke('api:save-file', fileInfo);
 	},
@@ -123,7 +127,8 @@ contextBridge.exposeInMainWorld('menu', {
 	getRecentProjects: () => ipcRenderer.invoke('menu:get-recent-projects'),
 	saveProject: () => ipcRenderer.send('menu:save-project'),
 	saveProjectAs: () => ipcRenderer.send('menu:save-project-as'),
-	toggleAutoSave: () => ipcRenderer.send('menu:toggle-auto-save'),
+	toggleAutoSave: () => ipcRenderer.invoke('menu:toggle-auto-save'),
+	getAutoSave: () => ipcRenderer.invoke('menu:get-auto-save'),
 	quitApp: () => ipcRenderer.send('menu:quit-app'),
 
 	/*======= Edit =======*/
@@ -145,10 +150,13 @@ contextBridge.exposeInMainWorld('menu', {
 	resetZoom: () => webFrame.setZoomLevel(0),
 	zoomIn: () => webFrame.setZoomLevel(webFrame.getZoomLevel() + 1),
 	zoomOut: () => webFrame.setZoomLevel(webFrame.getZoomLevel() - 1),
-	toggleDevTools: () => document.execCommand('toggleDevTools'),
+	toggleDevTools: () => ipcRenderer.send('menu:toggle-dev-tools'),
 	searchFile: () => ipcRenderer.send('menu:search-file'),
 	searchFolder: () => ipcRenderer.send('menu:search-folder'),
 	openProjectFolder: () => ipcRenderer.send('menu:open-project-folder'),
+
+	/*======= Build =======*/
+	runGame: () => ipcRenderer.invoke('menu:run-game'),
 
 	/*======= Help =======*/
 	welcome: () => ipcRenderer.send('menu:welcome'),

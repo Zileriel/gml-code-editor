@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useMainView } from '../contexts/MainViewContext';
 import {
 	FiFile,
 	FiSave,
@@ -27,6 +28,8 @@ import {
 
 export default function Topbar() {
 	const [recentProjects, setRecentProjects] = useState([]);
+	const [autoSave, setAutoSave] = useState(false);
+	const { switchToSearch } = useMainView();
 
 	const handleSave = async () => {
 		if (window.editorActions?.saveCurrentTab) {
@@ -42,6 +45,51 @@ export default function Topbar() {
 			}
 		}
 	};
+
+	const handleToggleAutoSave = async () => {
+		if (window.menu?.toggleAutoSave) {
+			try {
+				const newValue = await window.menu.toggleAutoSave();
+				setAutoSave(newValue);
+			} catch (error) {
+				console.error('Failed to toggle auto-save:', error);
+			}
+		}
+	};
+
+	useEffect(() => {
+		// Load auto-save setting
+		const loadAutoSave = async () => {
+			if (window.menu?.getAutoSave) {
+				try {
+					const value = await window.menu.getAutoSave();
+					setAutoSave(value);
+				} catch (error) {
+					console.error('Failed to load auto-save setting:', error);
+				}
+			}
+		};
+
+		loadAutoSave();
+	}, []);
+
+	useEffect(() => {
+		// Auto-save timer (every 10 seconds when window is active)
+		if (!autoSave) return;
+
+		const autoSaveInterval = setInterval(async () => {
+			// Check if window is focused
+			if (document.hasFocus() && window.editorActions?.saveAllTabs) {
+				try {
+					await window.editorActions.saveAllTabs();
+				} catch (error) {
+					console.error('Auto-save failed:', error);
+				}
+			}
+		}, 10000); // 10 seconds
+
+		return () => clearInterval(autoSaveInterval);
+	}, [autoSave]);
 
 	useEffect(() => {
 		const loadRecentProjects = async () => {
@@ -122,33 +170,33 @@ export default function Topbar() {
 						label="Save As..."
 						accelerator="Ctrl+Shift+S"
 						icon={<FiSave />}
-						click={() => {}}
+						enabled={false}
 					/>
 					<Separator />
 					<MenuItem
 						label="Auto Save"
 						type="checkbox"
-						checked={true}
-						click={() => {}}
+						checked={autoSave}
+						click={handleToggleAutoSave}
 					/>
-					<MenuItem label="Preferences" click={() => {}}>
+					<MenuItem label="Preferences" enabled={false}>
 						<Submenu>
 							<MenuItem
 								label="Settings"
 								accelerator="Ctrl+,"
 								icon={<FiSettings />}
-								click={() => {}}
+								enabled={false}
 							/>
 							<MenuItem
 								label="Keyboard Shortcuts"
 								accelerator="Ctrl+K Ctrl+S"
 								icon={<FiCommand />}
-								click={() => {}}
+								enabled={false}
 							/>
 						</Submenu>
 					</MenuItem>
 					<Separator />
-					<MenuItem label="Quit" accelerator="Ctrl+Q" click={() => {}} />
+					<MenuItem label="Quit" accelerator="Ctrl+Q" enabled={false} />
 				</Submenu>
 			</li>
 			<li>
@@ -158,32 +206,49 @@ export default function Topbar() {
 						label="Undo"
 						accelerator="Ctrl+Z"
 						icon={<FiRotateCcw />}
-						click={() => {}}
+						enabled={false}
 					/>
 					<MenuItem
 						label="Redo"
 						accelerator="Ctrl+Y"
 						icon={<FiRotateCw />}
-						click={() => {}}
+						enabled={false}
 					/>
 					<Separator />
 					<MenuItem
 						label="Cut"
 						accelerator="Ctrl+X"
 						icon={<FiScissors />}
-						click={() => {}}
+						enabled={false}
 					/>
 					<MenuItem
 						label="Copy"
 						accelerator="Ctrl+C"
 						icon={<FiCopy />}
-						click={() => {}}
+						enabled={false}
 					/>
 					<MenuItem
 						label="Paste"
 						accelerator="Ctrl+V"
 						icon={<FiClipboard />}
-						click={() => {}}
+						enabled={false}
+					/>
+				</Submenu>
+			</li>
+			<li>
+				<Label>Build</Label>
+				<Submenu>
+					<MenuItem
+						label="Run"
+						accelerator="F5"
+						click={async () => {
+							try {
+								await window.menu.runGame();
+								console.log('Game run command sent');
+							} catch (error) {
+								console.error('Failed to run game:', error);
+							}
+						}}
 					/>
 				</Submenu>
 			</li>
@@ -194,43 +259,49 @@ export default function Topbar() {
 						label="Reload"
 						accelerator="Ctrl+R"
 						icon={<FiRefreshCw />}
-						click={() => {}}
+						click={() => window.location.reload()}
 					/>
 					<Separator />
-					<MenuItem label="Appearance" click={() => {}}>
+					<MenuItem label="Appearance" enabled={false}>
 						<Submenu>
 							<MenuItem
 								label="Toggle Full Screen"
 								accelerator="F11"
 								icon={<FiMaximize />}
-								click={() => {}}
+								click={() => {
+									if (document.fullscreenElement) {
+										document.exitFullscreen();
+									} else {
+										document.body.requestFullscreen();
+									}
+								}}
 							/>
 							<Separator />
 							<MenuItem
 								label="Reset Zoom"
 								accelerator="Ctrl+0"
-								click={() => {}}
+								click={() => window.menu?.resetZoom?.()}
 							/>
 							<MenuItem
 								label="Zoom In"
 								accelerator="Ctrl+="
 								icon={<FiZoomIn />}
-								click={() => {}}
+								click={() => window.menu?.zoomIn?.()}
 							/>
 							<MenuItem
 								label="Zoom Out"
 								accelerator="Ctrl+-"
 								icon={<FiZoomOut />}
-								click={() => {}}
+								click={() => window.menu?.zoomOut?.()}
 							/>
 							<Separator />
-							<MenuItem label="Themes" click={() => {}}>
+							<MenuItem label="Themes" enabled={false}>
 								<Submenu>
 									<MenuItem
 										label="Default"
 										type="radio"
 										checked={true}
-										click={() => {}}
+										enabled={false}
 									/>
 								</Submenu>
 							</MenuItem>
@@ -241,48 +312,48 @@ export default function Topbar() {
 						label="Search"
 						accelerator="Ctrl+F"
 						icon={<FiSearch />}
-						click={() => {}}
+						enabled={false}
 					/>
 					<MenuItem
 						label="Search All Files"
 						accelerator="Ctrl+Shift+F"
 						icon={<FiSearch />}
-						click={() => {}}
+						click={() => switchToSearch()}
 					/>
 					<Separator />
 					<MenuItem
 						label="Open Project Folder"
 						icon={<FiFolder />}
-						click={() => {}}
+						click={() => window.menu?.openProjectFolder?.()}
 					/>
 					<MenuItem
 						label="Toggle Developer Tools"
 						accelerator="Ctrl+Shift+I"
-						click={() => {}}
+						click={() => window.menu?.toggleDevTools?.()}
 					/>
 				</Submenu>
 			</li>
 			<li>
 				<Label>Help</Label>
 				<Submenu>
-					<MenuItem label="Welcome" icon={<FiHelpCircle />} click={() => {}} />
+					<MenuItem label="Welcome" icon={<FiHelpCircle />} enabled={false} />
 					<Separator />
-					<MenuItem label="Documentation" icon={<FiBook />} click={() => {}} />
+					<MenuItem label="Documentation" icon={<FiBook />} enabled={false} />
 					<MenuItem
 						label="Discord"
 						icon={<FiMessageSquare />}
-						click={() => {}}
+						enabled={false}
 					/>
-					<MenuItem label="GitHub" icon={<FiGithub />} click={() => {}} />
+					<MenuItem label="GitHub" icon={<FiGithub />} enabled={false} />
 					<Separator />
-					<MenuItem label="Check for Updates" click={() => {}} />
+					<MenuItem label="Check for Updates" enabled={false} />
 					<MenuItem
 						label="Report an Issue"
 						icon={<FiAlertCircle />}
-						click={() => {}}
+						enabled={false}
 					/>
 					<Separator />
-					<MenuItem label="About" icon={<FiInfo />} click={() => {}} />
+					<MenuItem label="About" icon={<FiInfo />} enabled={false} />
 				</Submenu>
 			</li>
 		</ul>

@@ -15,7 +15,7 @@ function AppContent() {
 	const { editorInstance } = useEditor();
 
 	useEffect(() => {
-		const handleKeyDown = (e) => {
+		const handleKeyDown = async (e) => {
 			// Ctrl/Cmd + Shift + F for search
 			if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
 				e.preventDefault();
@@ -44,6 +44,17 @@ function AppContent() {
 			if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'G') {
 				e.preventDefault();
 				switchToSourceControl();
+			}
+
+			// F5 for Run Game
+			if (e.key === 'F5') {
+				e.preventDefault();
+				try {
+					await window.menu?.runGame?.();
+					console.log('Game run command sent');
+				} catch (error) {
+					console.error('Failed to run game:', error);
+				}
 			}
 		};
 

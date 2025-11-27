@@ -31,6 +31,9 @@ export const EditorProvider = ({ children }) => {
 			const removeListener = window.api.onProjectLoaded(async (data) => {
 				setProjectData(data);
 
+				// Reload content for all open tabs
+				await reloadOpenTabsContent();
+
 				// Initialize Monaco when project loads
 				try {
 					console.log('EditorContext: Project loaded, initializing Monaco...');
@@ -169,6 +172,40 @@ export const EditorProvider = ({ children }) => {
 		);
 	}, []);
 
+	const reloadOpenTabsContent = useCallback(async () => {
+		// Get current tabs at time of call
+		setOpenTabs((currentTabs) => {
+			// Reload content for all open tabs from disk
+			currentTabs.forEach(async (tab) => {
+				if (!tab.asset || tab.isDiff) return;
+
+				try {
+					const fileInfo = {
+						assetName: tab.asset.name,
+						assetType: tab.asset.type,
+						eventName: tab.eventName || null,
+					};
+
+					const result = await window.api.reloadFileContent(fileInfo);
+
+					if (result.success) {
+						setOpenTabs((prev) =>
+							prev.map((t) =>
+								t.id === tab.id
+									? { ...t, content: result.content, isDirty: false }
+									: t
+							)
+						);
+					}
+				} catch (error) {
+					console.error(`Failed to reload content for ${tab.title}:`, error);
+				}
+			});
+
+			return currentTabs;
+		});
+	}, []);
+
 	const saveCurrentTab = useCallback(async () => {
 		const tab = openTabs.find((t) => t.id === activeTab);
 		if (!tab || !tab.asset || tab.isDiff) {
@@ -176,6 +213,11 @@ export const EditorProvider = ({ children }) => {
 		}
 
 		try {
+			// Show saving message
+			if (window.updateStatusMessage) {
+				window.updateStatusMessage('Saving...');
+			}
+
 			const fileInfo = {
 				assetName: tab.asset.name,
 				assetType: tab.asset.type,
@@ -190,10 +232,22 @@ export const EditorProvider = ({ children }) => {
 				setOpenTabs((prev) =>
 					prev.map((t) => (t.id === tab.id ? { ...t, isDirty: false } : t))
 				);
+
+				// Show saved message for 2 seconds
+				if (window.updateStatusMessage) {
+					window.updateStatusMessage('Saved.', 2000);
+				}
+
 				return { success: true, message: 'File saved successfully' };
 			}
 		} catch (error) {
 			console.error('Error saving file:', error);
+
+			// Clear saving message
+			if (window.updateStatusMessage) {
+				window.updateStatusMessage('');
+			}
+
 			return { success: false, message: error.message };
 		}
 
@@ -207,6 +261,11 @@ export const EditorProvider = ({ children }) => {
 
 		if (saveableTabs.length === 0) {
 			return { success: true, message: 'No files to save', count: 0 };
+		}
+
+		// Show saving message
+		if (window.updateStatusMessage) {
+			window.updateStatusMessage('Saving...');
 		}
 
 		let savedCount = 0;
@@ -233,6 +292,18 @@ export const EditorProvider = ({ children }) => {
 			} catch (error) {
 				console.error('Error saving file:', error);
 				errors.push(`${tab.title}: ${error.message}`);
+			}
+		}
+
+		// Show completion message
+		if (window.updateStatusMessage) {
+			if (errors.length > 0) {
+				window.updateStatusMessage(
+					`Saved ${savedCount} files, ${errors.length} failed`,
+					3000
+				);
+			} else {
+				window.updateStatusMessage('Saved.', 2000);
 			}
 		}
 

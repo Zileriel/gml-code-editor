@@ -13,7 +13,14 @@ import { LuGitBranch, LuRefreshCw } from 'react-icons/lu';
 //#endregion
 
 export default function StatusBar() {
-	const { line, column, problems, currentFunction } = useEditorStatus();
+	const {
+		line,
+		column,
+		problems,
+		currentFunction,
+		statusMessage,
+		updateStatusMessage,
+	} = useEditorStatus();
 	const { goToNextProblem } = useEditor();
 	const [problemStatus, setProblemStatus] = useState('No Problems');
 	const [positionStatus, setPositionStatus] = useState('');
@@ -21,6 +28,14 @@ export default function StatusBar() {
 	const [functionStatus, setFunctionStatus] = useState('');
 	const [currentBranch, setCurrentBranch] = useState('');
 	const [gitOperation, setGitOperation] = useState('');
+
+	// Expose updateStatusMessage globally
+	useEffect(() => {
+		window.updateStatusMessage = updateStatusMessage;
+		return () => {
+			delete window.updateStatusMessage;
+		};
+	}, [updateStatusMessage]);
 
 	useEffect(() => {
 		let status = [];
@@ -192,6 +207,9 @@ export default function StatusBar() {
 			</ul>
 
 			<ul className="right items">
+				{statusMessage && (
+					<li className="item status-message">{statusMessage}</li>
+				)}
 				{currentBranch && (
 					<li
 						className="item git-branch"

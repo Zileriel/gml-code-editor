@@ -1111,16 +1111,218 @@ ipcMain.on('menu:save-project-as', () => {
 	// Handle "Save As" functionality
 });
 
-ipcMain.on('menu:toggle-auto-save', () => {
-	// Toggle auto-save feature
+ipcMain.handle('menu:toggle-auto-save', () => {
+	const currentValue = store.get('autoSave', false);
+	const newValue = !currentValue;
+	store.set('autoSave', newValue);
+	return newValue;
+});
+
+ipcMain.handle('menu:get-auto-save', () => {
+	return store.get('autoSave', false);
 });
 
 ipcMain.on('menu:quit-app', () => {
 	app.quit();
 });
 
+ipcMain.handle('menu:run-game', async () => {
+	try {
+		let command;
+
+		if (process.platform === 'linux') {
+			// Use wmctrl (usually pre-installed) and xev approach
+			// If wmctrl is not available, use native X11 tools
+			command = `
+				# Try to find GameMaker window using wmctrl or fallback to xprop
+				if command -v wmctrl >/dev/null 2>&1; then
+					# Try different GameMaker versions
+					WID=$(wmctrl -l | grep -i "GameMaker Studio 2" | head -1 | awk '{print $1}')
+					if [ -z "$WID" ]; then
+						WID=$(wmctrl -l | grep -i "GameMaker Studio" | head -1 | awk '{print $1}')
+					fi
+					if [ -z "$WID" ]; then
+						WID=$(wmctrl -l | grep -i "GameMaker" | grep -v -i "chrome\\|firefox\\|chromium" | head -1 | awk '{print $1}')
+					fi
+					if [ -z "$WID" ]; then
+						echo "GameMaker window not found" >&2
+						exit 1
+					fi
+					# Activate the window
+					wmctrl -i -a "$WID"
+					sleep 0.3
+					# Send F5 using xdotool if available, otherwise use Python
+					if command -v xdotool >/dev/null 2>&1; then
+						xdotool key --window "$WID" F5
+					else
+						# Fallback: use Python with Xlib (usually available)
+						python3 -c "
+import sys
+try:
+    from Xlib import X, XK
+    from Xlib.display import Display
+    display = Display()
+    window = display.create_resource_object('window', int('$WID', 16))
+    f5_keycode = display.keysym_to_keycode(XK.string_to_keysym('F5'))
+    event = Xlib.protocol.event.KeyPress(
+        time=X.CurrentTime,
+        root=display.screen().root,
+        window=window,
+        same_screen=0, child=X.NONE,
+        root_x=0, root_y=0, event_x=0, event_y=0,
+        state=0,
+        detail=f5_keycode
+    )
+    window.send_event(event, propagate=True)
+    display.flush()
+except ImportError:
+    print('Install python3-xlib: sudo apt-get install python3-xlib', file=sys.stderr)
+    sys.exit(1)
+except Exception as e:
+    print(f'Error: {e}', file=sys.stderr)
+    sys.exit(1)
+" || echo "Could not send F5 key" >&2
+					fi
+				else
+					echo "wmctrl not found. Please install it: sudo apt-get install wmctrl" >&2
+					exit 1
+				fi
+			`.trim();
+		} else if (process.platform === 'darwin') {
+			// macOS - use AppleScript (always available)
+			command = `osascript -e '
+				tell application "System Events"
+					-- Try to find GameMaker process (any version)
+					set gmProcess to null
+					set processList to name of every process
+					
+					repeat with processName in processList
+						if processName contains "GameMaker" then
+							set gmProcess to processName
+							exit repeat
+						end if
+					end repeat
+					
+					if gmProcess is null then
+						error "GameMaker is not running"
+					end if
+					
+					-- Activate the process
+					set frontmost of process gmProcess to true
+					delay 0.3
+					
+					-- Send F5 key (key code 96)
+					tell process gmProcess
+						key code 96
+					end tell
+				end tell
+			'`.replace(/\n/g, ' ');
+		} else if (process.platform === 'win32') {
+			// Windows - use PowerShell (always available)
+			const psScript = `
+				Add-Type @"
+					using System;
+					using System.Runtime.InteropServices;
+					public class WinAPI {
+						[DllImport("user32.dll")]
+						[return: MarshalAs(UnmanagedType.Bool)]
+						public static extern bool SetForegroundWindow(IntPtr hWnd);
+						
+						[DllImport("user32.dll")]
+						[return: MarshalAs(UnmanagedType.Bool)]
+						public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+						
+						public const int SW_RESTORE = 9;
+					}
+"@
+
+				# Try to find GameMaker process (any version)
+				$process = $null
+				
+				# Try different GameMaker versions
+				$process = Get-Process | Where-Object {
+					$_.MainWindowTitle -like "*GameMaker Studio 2*" -or
+					$_.MainWindowTitle -like "*GameMaker Studio*" -or
+					($_.MainWindowTitle -like "*GameMaker*" -and $_.MainWindowTitle -notlike "*Chrome*" -and $_.MainWindowTitle -notlike "*Firefox*")
+				} | Select-Object -First 1
+				
+				if ($null -eq $process) {
+					throw "GameMaker is not running"
+				}
+				
+				$hwnd = $process.MainWindowHandle
+				if ($hwnd -eq [IntPtr]::Zero) {
+					throw "GameMaker window not found"
+				}
+				
+				# Restore window if minimized
+				[WinAPI]::ShowWindow($hwnd, [WinAPI]::SW_RESTORE) | Out-Null
+				Start-Sleep -Milliseconds 150
+				
+				# Bring to foreground
+				[WinAPI]::SetForegroundWindow($hwnd) | Out-Null
+				Start-Sleep -Milliseconds 300
+				
+				# Send F5 key
+				Add-Type -AssemblyName System.Windows.Forms
+				[System.Windows.Forms.SendKeys]::SendWait("{F5}")
+			`.trim();
+			command = `powershell -ExecutionPolicy Bypass -Command "${psScript.replace(
+				/"/g,
+				'`"'
+			)}"`;
+		} else {
+			throw new Error(`Unsupported platform: ${process.platform}`);
+		}
+
+		const { stdout, stderr } = await execAsync(command, { shell: '/bin/bash' });
+
+		// Check for specific error patterns
+		if (
+			stderr &&
+			(stderr.includes('not found') || stderr.includes('not running'))
+		) {
+			throw new Error('GameMaker is not running');
+		}
+
+		return { success: true };
+	} catch (error) {
+		console.error('Failed to run game:', error);
+
+		// Provide helpful error messages
+		let errorMessage = error.message;
+		if (
+			errorMessage.includes('not found') ||
+			errorMessage.includes('not running')
+		) {
+			errorMessage = 'GameMaker is not running. Please open GameMaker first.';
+		} else if (errorMessage.includes('wmctrl')) {
+			errorMessage =
+				'Required tool not found. Please install wmctrl: sudo apt-get install wmctrl';
+		}
+
+		throw new Error(errorMessage);
+	}
+});
+
 ipcMain.on('menu:open-project-folder', () => {
-	// Open the current project's folder in the system file explorer
+	const currentProject = store.get('currentProject');
+	if (currentProject && fs.existsSync(currentProject)) {
+		// Open folder in file explorer based on platform
+		if (process.platform === 'linux') {
+			exec(`xdg-open "${currentProject}"`);
+		} else if (process.platform === 'darwin') {
+			exec(`open "${currentProject}"`);
+		} else if (process.platform === 'win32') {
+			exec(`explorer "${currentProject}"`);
+		}
+	}
+});
+
+ipcMain.on('menu:toggle-dev-tools', () => {
+	if (mainWindow) {
+		mainWindow.webContents.toggleDevTools();
+	}
 });
 
 ipcMain.handle('menu:refresh-project', async () => {
@@ -1135,6 +1337,47 @@ ipcMain.handle('menu:refresh-project', async () => {
 		return projectData;
 	}
 	return null;
+});
+
+ipcMain.handle('api:reload-file-content', async (event, fileInfo) => {
+	try {
+		const projectDir = store.get('currentProject');
+		if (!projectDir) {
+			throw new Error('No project is currently open');
+		}
+
+		const { assetName, assetType, eventName } = fileInfo;
+		let filePath;
+
+		// Determine the file path based on asset type
+		if (assetType === 'script') {
+			filePath = path.join(
+				projectDir,
+				'scripts',
+				assetName,
+				`${assetName}.gml`
+			);
+		} else if (assetType === 'object' && eventName) {
+			const eventFileName = eventName.endsWith('.gml')
+				? eventName
+				: `${eventName}.gml`;
+			filePath = path.join(projectDir, 'objects', assetName, eventFileName);
+		} else if (assetType === 'note') {
+			filePath = path.join(projectDir, 'notes', assetName, `${assetName}.txt`);
+		} else {
+			throw new Error(`Unsupported asset type: ${assetType}`);
+		}
+
+		if (!fs.existsSync(filePath)) {
+			throw new Error(`File not found: ${filePath}`);
+		}
+
+		const content = fs.readFileSync(filePath, 'utf-8');
+		return { success: true, content };
+	} catch (error) {
+		console.error('Reload file error:', error);
+		throw new Error(`Failed to reload file: ${error.message}`);
+	}
 });
 
 ipcMain.handle('menu:open-recent-project', async (event, projectPath) => {

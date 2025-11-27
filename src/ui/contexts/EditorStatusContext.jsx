@@ -20,6 +20,14 @@ export const EditorStatusProvider = ({ children }) => {
 		info: 0,
 	});
 	const [currentFunction, setCurrentFunction] = useState(null);
+	const [statusMessage, setStatusMessage] = useState('');
+
+	const updateStatusMessage = useCallback((message, duration = 0) => {
+		setStatusMessage(message);
+		if (duration > 0) {
+			setTimeout(() => setStatusMessage(''), duration);
+		}
+	}, []);
 
 	const updatePosition = useCallback((newLine, newColumn) => {
 		setLine(newLine);
@@ -67,10 +75,12 @@ export const EditorStatusProvider = ({ children }) => {
 		column,
 		problems,
 		currentFunction,
+		statusMessage,
 		updatePosition,
 		updateProblems,
 		updateCurrentFunction,
 		updateEditorStatus,
+		updateStatusMessage,
 	};
 
 	return (
