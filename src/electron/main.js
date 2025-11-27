@@ -1566,6 +1566,53 @@ ipcMain.handle('api:read-file', async (event, filePath) => {
 	}
 });
 
+ipcMain.handle('api:save-file', async (event, fileInfo) => {
+	try {
+		const projectDir = store.get('currentProject');
+		if (!projectDir) {
+			throw new Error('No project is currently open');
+		}
+
+		const { assetName, assetType, eventName, content } = fileInfo;
+
+		let filePath;
+
+		// Determine the file path based on asset type
+		if (assetType === 'script') {
+			filePath = path.join(
+				projectDir,
+				'scripts',
+				assetName,
+				`${assetName}.gml`
+			);
+		} else if (assetType === 'object' && eventName) {
+			// For objects, save to the specific event file
+			const eventFileName = eventName.endsWith('.gml')
+				? eventName
+				: `${eventName}.gml`;
+			filePath = path.join(projectDir, 'objects', assetName, eventFileName);
+		} else if (assetType === 'note') {
+			filePath = path.join(projectDir, 'notes', assetName, `${assetName}.txt`);
+		} else {
+			throw new Error(`Unsupported asset type: ${assetType}`);
+		}
+
+		// Ensure directory exists
+		const dir = path.dirname(filePath);
+		if (!fs.existsSync(dir)) {
+			throw new Error(`Directory does not exist: ${dir}`);
+		}
+
+		// Write the file
+		fs.writeFileSync(filePath, content, 'utf-8');
+
+		return { success: true, filePath };
+	} catch (error) {
+		console.error('Save file error:', error);
+		throw new Error(`Failed to save file: ${error.message}`);
+	}
+});
+
 ipcMain.handle('api:get-current-branch', async () => {
 	try {
 		if (!(await isGitRepository())) {

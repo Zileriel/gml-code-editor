@@ -74,17 +74,19 @@ export default function Main() {
 	};
 
 	const currentWidth = getCurrentPanelWidth();
-	const resizeHandleWidth = 4; // Width of resize handle
-	const sidebarWidth = 60; // Width of the sidebar
-	const totalLeftSpace = (isCollapsed ? 0 : currentWidth) + (isCollapsed ? 0 : resizeHandleWidth) + sidebarWidth;
+	const resizeHandleWidth = 4;
+	const sidebarWidth = 60;
+	const totalLeftSpace =
+		(isCollapsed ? 0 : currentWidth) +
+		(isCollapsed ? 0 : resizeHandleWidth) +
+		sidebarWidth;
 
 	return (
-		<div 
+		<div
 			id="main"
 			style={{
-				'--left-space': `${totalLeftSpace}px`
-			}}
-		>
+				'--left-space': `${totalLeftSpace}px`,
+			}}>
 			<div
 				className={`left-panel ${isCollapsed ? 'collapsed' : ''}`}
 				style={{

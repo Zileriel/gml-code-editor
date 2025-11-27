@@ -107,6 +107,10 @@ contextBridge.exposeInMainWorld('api', {
 	readFile: (filePath) => {
 		return ipcRenderer.invoke('api:read-file', filePath);
 	},
+
+	saveFile: (fileInfo) => {
+		return ipcRenderer.invoke('api:save-file', fileInfo);
+	},
 });
 
 contextBridge.exposeInMainWorld('menu', {

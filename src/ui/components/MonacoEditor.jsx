@@ -21,7 +21,8 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 	const resizeObserverRef = useRef(null);
 	const [isEditorReady, setIsEditorReady] = useState(false);
 	const { updateEditorStatus } = useEditorStatus();
-	const { setEditorInstance, openFileAtLocation, openTabs } = useEditor();
+	const { setEditorInstance, openFileAtLocation, openTabs, saveCurrentTab } =
+		useEditor();
 
 	// Suppress Monaco disposal errors
 	useEffect(() => {
@@ -63,6 +64,7 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 	useEffect(() => {
 		window.editorActions = {
 			openFile: openFileAtLocation,
+			saveCurrentTab: saveCurrentTab,
 		};
 		// Also store openFileAtLocation globally for Monaco commands
 		window.openFileAtLocation = openFileAtLocation;
@@ -71,7 +73,7 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 			delete window.editorActions;
 			delete window.openFileAtLocation;
 		};
-	}, [openFileAtLocation]);
+	}, [openFileAtLocation, saveCurrentTab]);
 
 	useEffect(() => {
 		const handleProjectUpdate = (projectData) => {
@@ -694,6 +696,21 @@ const MonacoEditor = ({ tabId, content, language, onContentChange }) => {
 										location.line,
 										location.column
 									);
+								}
+							}
+						}
+					);
+
+					// Register save command (Ctrl+S)
+					editor.addCommand(
+						monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
+						async () => {
+							if (window.editorActions?.saveCurrentTab) {
+								const result = await window.editorActions.saveCurrentTab();
+								if (result.success) {
+									console.log('File saved successfully');
+								} else {
+									console.error('Failed to save file:', result.message);
 								}
 							}
 						}

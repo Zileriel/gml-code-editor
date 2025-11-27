@@ -28,6 +28,21 @@ import {
 export default function Topbar() {
 	const [recentProjects, setRecentProjects] = useState([]);
 
+	const handleSave = async () => {
+		if (window.editorActions?.saveCurrentTab) {
+			try {
+				const result = await window.editorActions.saveCurrentTab();
+				if (result.success) {
+					console.log('File saved successfully');
+				} else {
+					console.warn('Save failed:', result.message);
+				}
+			} catch (error) {
+				console.error('Error saving file:', error);
+			}
+		}
+	};
+
 	useEffect(() => {
 		const loadRecentProjects = async () => {
 			if (window.menu?.getRecentProjects) {
@@ -101,7 +116,7 @@ export default function Topbar() {
 						label="Save"
 						accelerator="Ctrl+S"
 						icon={<FiSave />}
-						click={() => {}}
+						click={handleSave}
 					/>
 					<MenuItem
 						label="Save As..."

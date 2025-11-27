@@ -169,6 +169,88 @@ export const EditorProvider = ({ children }) => {
 		);
 	}, []);
 
+	const saveCurrentTab = useCallback(async () => {
+		const tab = openTabs.find((t) => t.id === activeTab);
+		if (!tab || !tab.asset || tab.isDiff) {
+			return { success: false, message: 'No saveable tab active' };
+		}
+
+		try {
+			const fileInfo = {
+				assetName: tab.asset.name,
+				assetType: tab.asset.type,
+				eventName: tab.eventName || null,
+				content: tab.content,
+			};
+
+			const result = await window.api.saveFile(fileInfo);
+
+			if (result.success) {
+				// Mark tab as not dirty
+				setOpenTabs((prev) =>
+					prev.map((t) => (t.id === tab.id ? { ...t, isDirty: false } : t))
+				);
+				return { success: true, message: 'File saved successfully' };
+			}
+		} catch (error) {
+			console.error('Error saving file:', error);
+			return { success: false, message: error.message };
+		}
+
+		return { success: false, message: 'Unknown error' };
+	}, [openTabs, activeTab]);
+
+	const saveAllTabs = useCallback(async () => {
+		const saveableTabs = openTabs.filter(
+			(tab) => tab.asset && !tab.isDiff && tab.isDirty
+		);
+
+		if (saveableTabs.length === 0) {
+			return { success: true, message: 'No files to save', count: 0 };
+		}
+
+		let savedCount = 0;
+		let errors = [];
+
+		for (const tab of saveableTabs) {
+			try {
+				const fileInfo = {
+					assetName: tab.asset.name,
+					assetType: tab.asset.type,
+					eventName: tab.eventName || null,
+					content: tab.content,
+				};
+
+				const result = await window.api.saveFile(fileInfo);
+
+				if (result.success) {
+					savedCount++;
+					// Mark tab as not dirty
+					setOpenTabs((prev) =>
+						prev.map((t) => (t.id === tab.id ? { ...t, isDirty: false } : t))
+					);
+				}
+			} catch (error) {
+				console.error('Error saving file:', error);
+				errors.push(`${tab.title}: ${error.message}`);
+			}
+		}
+
+		if (errors.length > 0) {
+			return {
+				success: false,
+				message: `Saved ${savedCount} files, ${errors.length} failed`,
+				errors,
+			};
+		}
+
+		return {
+			success: true,
+			message: `Saved ${savedCount} files`,
+			count: savedCount,
+		};
+	}, [openTabs]);
+
 	const reorderTabs = useCallback((draggedId, targetId) => {
 		setOpenTabs((prev) => {
 			const draggedIndex = prev.findIndex((tab) => tab.id === draggedId);
@@ -331,6 +413,8 @@ export const EditorProvider = ({ children }) => {
 		openDiffView,
 		closeTab,
 		updateTabContent,
+		saveCurrentTab,
+		saveAllTabs,
 		reorderTabs,
 		editorInstance,
 		setEditorInstance,
