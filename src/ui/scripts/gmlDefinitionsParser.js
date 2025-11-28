@@ -12,7 +12,7 @@ class GMLDefinitionsParser {
 		if (this.parsed) return;
 
 		try {
-			const response = await fetch('/definitions.xml');
+			const response = await fetch('./definitions.xml');
 			const xmlText = await response.text();
 			const parser = new DOMParser();
 			const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
